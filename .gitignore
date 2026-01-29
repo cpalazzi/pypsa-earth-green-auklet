@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Jupyter
+**/.ipynb_checkpoints
+
+# Results and outputs
+results/
+logs/
+
+# Local data downloads
+data_remote/
+
+# Editor
+.vscode/
+*.code-workspace
