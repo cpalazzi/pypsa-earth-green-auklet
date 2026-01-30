@@ -1,0 +1,98 @@
+# SPDX-FileCopyrightText:  PyPSA-Earth and PyPSA-Eur Authors
+#
+# SPDX-License-Identifier: CC0-1.0
+
+# Staging config to pre-download OSM/databundles and build annual cutout
+
+version: 0.8.0
+tutorial: false
+
+logging:
+  level: INFO
+  format: "%(levelname)s:%(name)s:%(message)s"
+
+results_dir: results/
+summary_dir: results/
+
+foresight: overnight
+
+countries:
+  - DE
+  - FR
+  - GB
+  - IT
+  - ES
+  - PL
+  - NL
+  - BE
+  - CZ
+  - RO
+  - SE
+  - PT
+  - GR
+  - HU
+  - AT
+  - BG
+  - DK
+  - FI
+  - SK
+  - IE
+  - HR
+  - LT
+  - SI
+  - LV
+  - EE
+  - CY
+  - LU
+  - MT
+  - "NO"
+  - CH
+  - RS
+  - BA
+  - AL
+  - MK
+  - ME
+
+enable:
+  retrieve_databundle: true
+  retrieve_databundle_sector: false
+  retrieve_cost_data: false
+  download_osm_data: true
+  download_global_buildings: false
+  build_natura_raster: false
+  build_cutout: true
+  progress_bar: true
+  custom_busmap: false
+
+custom_rules: []
+
+run:
+  name: "europe-year-140-stage"
+  sector_name: ""
+  shared_cutouts: true
+  allow_scenario_failure: false
+
+scenario:
+  simpl: [""]
+  ll: ["copt"]
+  clusters: [140]
+  opts: [Co2L-3h]
+  planning_horizons:
+  - 2030
+  sopts:
+  - "8760h"
+  demand:
+  - "AB"
+
+snapshots:
+  start: "2013-01-01"
+  end: "2014-01-01"
+  inclusive: "left"
+
+atlite:
+  nprocesses: 4
+  cutouts:
+    cutout-2013-era5:
+      module: era5
+      dx: 0.3
+      dy: 0.3
