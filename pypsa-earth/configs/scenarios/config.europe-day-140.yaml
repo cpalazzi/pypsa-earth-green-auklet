@@ -61,7 +61,7 @@ enable:
   retrieve_databundle: true
   retrieve_databundle_sector: false  # Not needed for electricity-only model
   retrieve_cost_data: true
-  download_osm_data: false  # Use databundle for faster setup
+  download_osm_data: true  # Required to generate OSM raw inputs
   download_global_buildings: false
   build_natura_raster: false  # Use pregenerated
   build_cutout: false  # Use existing cutout
