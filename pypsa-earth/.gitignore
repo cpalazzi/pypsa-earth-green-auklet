@@ -62,6 +62,7 @@ venv/
 # Specific configuration files
 configs/scenarios/config.*.yaml
 !configs/scenarios/config.NG.yaml
+!configs/scenarios/config.europe-day-140.yaml
 
 # VS Code-related files
 .vscode
