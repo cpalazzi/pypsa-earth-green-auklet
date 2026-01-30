@@ -95,13 +95,20 @@ if [[ "${ARC_STAGE_DATA:-0}" == "1" ]]; then
     if [[ " ${stage_targets[*]} " == *" retrieve_databundle_light "* ]]; then
       printf 'all\n\n' | "$SNAKEMAKE" --cores "$CPUS" "${stage_targets[@]}" \
         --resources mem_mb="$MEM_MB" --keep-going --rerun-incomplete \
-        --latency-wait "$LATENCY_WAIT"
+        --latency-wait "$LATENCY_WAIT" \
+        "${CONFIG_ARGS[@]}"
     else
       "$SNAKEMAKE" --cores "$CPUS" "${stage_targets[@]}" \
         --resources mem_mb="$MEM_MB" --keep-going --rerun-incomplete \
-        --latency-wait "$LATENCY_WAIT"
+        --latency-wait "$LATENCY_WAIT" \
+        "${CONFIG_ARGS[@]}"
     fi
   fi
+fi
+
+if [[ "${ARC_STAGE_ONLY:-0}" == "1" ]]; then
+  echo "ARC_STAGE_ONLY=1 set; skipping full solve."
+  exit 0
 fi
 
 run_snakemake() {
