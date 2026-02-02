@@ -1,13 +1,13 @@
 # PyPSA-Earth Green Auklet — Development Notes
 
 ## Purpose
-This repo is a working fork of `pypsa-earth` focused on European electricity system modeling with proper version control and standardized workflows.
+This repo is a working fork of `pypsa-earth` focused on European electricity system modeling with proper version control and standardized workflows. This document is for maintainers and AI agents: decisions, conventions, testing plan, and troubleshooting. We do not preserve backward compatibility in docs or code during active development; any high-level historical notes or function descriptions should be added here.
 
 ## Repository Structure
 - `pypsa-earth/` - Main PyPSA-Earth model code (submodule/fork)
 - `arc/` - ARC cluster job submission scripts
 - `notebooks/` - Analysis notebooks
-- `results/` - Model results (gitignored, structured by scenario)
+- `results/` - Model results (gitignored, structured by scenario, kept via .gitkeep)
 - `configs/scenarios/` - Model configuration files
 
 ## What we copied in
@@ -146,9 +146,65 @@ Nodes distributed by load (`distribute_cluster: ["load"]`):
 - Network intermediate files
 - Logs
 
-## Common Issues and Solutions
+## Testing Plan and Validation
 
-See `TESTING_PLAN.md` for detailed troubleshooting guide.
+Progressive validation approach:
+
+1. **Day (24h)**: Quick validation, data loading, network connectivity
+2. **Week (168h)**: Storage dynamics and daily cycles
+3. **Month (720h)**: Seasonal patterns and longer storage behavior
+4. **Year (8760h)**: Full optimization with seasonal cycles
+
+### Validation Checklist
+
+- [ ] Network loads successfully
+- [ ] Correct number of buses/nodes
+- [ ] All countries represented
+- [ ] Renewables have non-zero potential
+- [ ] Network is fully connected
+- [ ] Solver converges to optimal
+- [ ] No load shedding (unless CO2 constrained)
+- [ ] Energy balance: generation ≈ load
+- [ ] Capacity factors are reasonable
+- [ ] System costs are reasonable
+
+### Useful Snippets
+
+```python
+import pypsa
+n = pypsa.Network("results/europe-day-140/networks/elec_s_140_ec_lcopt_Co2L-3h.nc")
+
+print(f"Buses: {len(n.buses)}")
+print(f"Generators: {len(n.generators)}")
+print(f"Snapshots: {len(n.snapshots)}")
+print(f"Total load: {n.loads_t.p_set.sum().sum():.2f} MWh")
+print(f"Total generation: {n.generators_t.p.sum().sum():.2f} MWh")
+print(f"Total system cost: €{n.objective:,.0f}")
+```
+
+### Troubleshooting
+
+**Gurobi license error**
+```bash
+export GRB_LICENSE_FILE=~/gurobi.lic
+python -c "import gurobipy; print(gurobipy.gurobi.version())"
+```
+
+**Snakemake locked**
+```bash
+snakemake --unlock
+```
+
+**Out of memory**
+- Local: Reduce time range or clusters
+- ARC: Increase memory in job script (`#SBATCH --mem=512G`)
+
+**Solver doesn't converge**
+```yaml
+solving:
+  solver:
+    options: gurobi-numeric-focus
+```
 
 ### Gurobi License
 Ensure `GRB_LICENSE_FILE` environment variable points to license file:
@@ -171,7 +227,6 @@ solving:
 
 ## Documentation
 
-- **Testing Plan**: `TESTING_PLAN.md` - Comprehensive testing and validation guide
 - **PyPSA-Earth Docs**: https://pypsa-earth.readthedocs.io/
 - **PyPSA Docs**: https://pypsa.readthedocs.io/
 - **ARC Guide**: https://arc-user-guide.rc.ox.ac.uk/

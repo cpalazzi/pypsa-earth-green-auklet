@@ -12,6 +12,8 @@ venv/
 
 # Results and outputs
 results/
+!results/
+!results/.gitkeep
 logs/
 
 # Local data downloads

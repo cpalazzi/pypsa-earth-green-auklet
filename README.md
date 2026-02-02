@@ -1,6 +1,6 @@
 # PyPSA-Earth Europe Testing Repository
 
-This repository is a working fork of [PyPSA-Earth](https://github.com/pypsa-meets-earth/pypsa-earth) configured for European electricity system modeling with standardized workflows for both local development and Oxford ARC cluster execution.
+This repository is a working fork of [PyPSA-Earth](https://github.com/pypsa-meets-earth/pypsa-earth) configured for European electricity system modeling with standardized workflows for local development and Oxford ARC cluster execution.
 
 ## Overview
 
@@ -72,13 +72,9 @@ pypsa-earth-green-auklet/
 ├── notebooks/                            # Analysis notebooks
 │   ├── 000_arc_run_steps.ipynb          # ARC workflow example
 │   └── 001_run_analysis.ipynb           # Results analysis
-├── results/                              # Model results (gitignored)
-│   ├── .gitignore                        # Keep structure only
-│   └── README.md                         # Results documentation
+├── results/                              # Model results (gitignored, keep via .gitkeep)
 ├── local_setup.sh                        # Local environment setup
-├── DEVELOPMENT_NOTES.md                  # Development documentation
-├── TESTING_PLAN.md                       # Comprehensive testing guide
-├── QUICKREF.md                           # Quick reference guide
+├── DEVELOPMENT_NOTES.md                  # Development notes + test plan
 └── README.md                             # This file
 ```
 
@@ -136,49 +132,38 @@ Match config without "config." prefix: `europe-day-140`, `europe-week-140`
 ### Results
 Organized by run name: `results/europe-day-140/`
 
-## Features
+## Solver Configuration
 
-### Geographic Coverage
-- **Major economies**: Germany, France, UK, Italy, Spain, Poland
-- **Nordic countries**: Sweden, Norway, Finland, Denmark
-- **Western Europe**: Netherlands, Belgium, Ireland, Luxembourg, Switzerland, Austria
-- **Eastern Europe**: Poland, Czech Republic, Slovakia, Hungary, Romania, Bulgaria
-- **Southern Europe**: Portugal, Spain, Italy, Greece
-- **Balkans**: Serbia, Bosnia, Albania, North Macedonia, Montenegro, Croatia, Slovenia
-- **Baltic states**: Lithuania, Latvia, Estonia
-- **Islands**: Cyprus, Malta
-
-### Technology Coverage
-- **Renewables**: Solar PV, onshore wind, offshore wind (AC/DC)
-- **Conventional**: Nuclear, coal, lignite, gas (OCGT/CCGT)
-- **Storage**: Batteries (6h), hydrogen (168h)
-- **Hydro**: Reservoir, run-of-river, pumped storage
-- **Transmission**: AC lines, HVDC links
-
-### Solver Configuration
 - **Primary**: Gurobi (barrier method, optimized settings)
 - **Fallback options**: HiGHS, CPLEX, COPT
 - **Threading**: Configurable (4-64 cores)
 - **Tolerance**: 1e-6 (adjustable for difficult problems)
 
-## Testing Strategy
+## Results
 
-Progressive validation approach:
+Results are organized by scenario name:
 
-1. **Day (24h)**: Quick validation - network connectivity, data loading
-2. **Week (168h)**: Storage dynamics - daily cycles, multi-day patterns
-3. **Month (720h)**: Seasonal patterns - weekly variations, longer storage
-4. **Year (8760h)**: Full optimization - complete seasonal cycles
+```
+results/
+├── <scenario-name>/
+│   ├── networks/        # Solved network files (.nc)
+│   ├── graphs/          # Network visualizations
+│   ├── csvs/            # Exported CSV data
+│   └── logs/            # Run logs
+```
 
-See [TESTING_PLAN.md](TESTING_PLAN.md) for detailed validation procedures.
+Scenarios follow the pattern: `<region>-<time>-<nodes>` (e.g., `europe-day-140`).
+
+Download ARC results:
+
+```bash
+rsync -av <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/results/<scenario>/ results/<scenario>/
+```
 
 ## Documentation
 
-- **[QUICKREF.md](QUICKREF.md)**: Quick reference for common commands
-- **[TESTING_PLAN.md](TESTING_PLAN.md)**: Comprehensive testing and validation guide
-- **[DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)**: Development notes and workflow
+- **[DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)**: Development notes, testing plan, and validation checklist
 - **[arc/README.md](arc/README.md)**: ARC cluster usage guide
-- **[results/README.md](results/README.md)**: Results organization
 
 ## Requirements
 
@@ -228,88 +213,9 @@ bash arc/arc_initial_setup.sh
 squeue -u <user>
 ```
 
-## Usage Examples
-
-### Local Testing
-```bash
-cd pypsa-earth
-
-# Dry run (check workflow)
-snakemake --configfile configs/scenarios/config.europe-day-140.yaml --dry-run
-
-# Run with 4 cores
-snakemake --configfile configs/scenarios/config.europe-day-140.yaml --cores 4
-
-# Force rebuild
-snakemake --configfile configs/scenarios/config.europe-day-140.yaml --cores 4 --forceall
-```
-
-### ARC Production
-```bash
-cd pypsa-earth-green-auklet/pypsa-earth
-
-# Submit job
-sbatch ../arc/jobs/arc_snakemake_gurobi.sh europe-day-140 configs/scenarios/config.europe-day-140.yaml
-
-# Monitor
-squeue -u <user>
-tail -f logs/snakemake-europe-day-140-*-gurobi.log
-
-# Check results
-ls -lh results/europe-day-140/
-```
-
-### Analysis
-```python
-import pypsa
-import pandas as pd
-import matplotlib.pyplot as plt
-
-# Load network
-n = pypsa.Network("results/europe-day-140/networks/elec_s_140_ec_lcopt_Co2L-3h.nc")
-
-# Summary statistics
-print(f"Buses: {len(n.buses)}")
-print(f"Total load: {n.loads_t.p_set.sum().sum():.2f} MWh")
-print(f"System cost: €{n.objective:,.0f}")
-
-# Generation by carrier
-gen_capacity = n.generators.groupby("carrier")["p_nom_opt"].sum()
-print("\nInstalled capacity (MW):")
-print(gen_capacity.sort_values(ascending=False))
-
-# Plot network
-n.plot(line_widths=0.5, title="Europe 140-node Network")
-plt.show()
-```
-
 ## Troubleshooting
 
-### Common Issues
-
-1. **Gurobi license error**
-   ```bash
-   export GRB_LICENSE_FILE=~/gurobi.lic
-   python -c "import gurobipy; print(gurobipy.gurobi.version())"
-   ```
-
-2. **Snakemake locked**
-   ```bash
-   snakemake --unlock
-   ```
-
-3. **Out of memory**
-   - Local: Reduce time range or clusters
-   - ARC: Increase memory in job script (`#SBATCH --mem=512G`)
-
-4. **Solver doesn't converge**
-   ```yaml
-   solving:
-     solver:
-       options: gurobi-numeric-focus
-   ```
-
-See [TESTING_PLAN.md](TESTING_PLAN.md) for more troubleshooting.
+See [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md) for the validation checklist and troubleshooting steps.
 
 ## Contributing
 
@@ -351,5 +257,3 @@ Built on [PyPSA-Earth](https://github.com/pypsa-meets-earth/pypsa-earth) by the 
 - [ ] Validate day scenario
 - [ ] Extend to week/month/year scenarios
 - [ ] Develop analysis notebooks
-- [ ] Sensitivity analysis framework
-- [ ] Integration with ammonia production modeling
