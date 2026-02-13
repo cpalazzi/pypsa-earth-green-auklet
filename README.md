@@ -24,7 +24,9 @@ PyPSA-Earth is an open-source energy system model that optimizes electricity gen
 2. **Run test scenario:**
    ```bash
    cd pypsa-earth
-   snakemake --configfile configs/scenarios/config.europe-day-140.yaml --cores 4
+   snakemake --cores 4 \
+     results/europe-day-140/networks/elec_s_140_ec_lcopt_Co2L-3h.nc \
+     --configfile configs/scenarios/config.europe-day-140.yaml
    ```
 
 3. **Analyze results:**
@@ -65,7 +67,6 @@ pypsa-earth-green-auklet/
 │   └── Snakefile                         # Snakemake workflow
 ├── arc/                                  # ARC cluster scripts
 │   ├── arc_initial_setup.sh             # Interactive setup wizard
-│   ├── arc_submit_run.sh                # Job submission helper
 │   ├── build-pypsa-earth-env            # Environment builder
 │   ├── jobs/arc_snakemake_gurobi.sh     # SLURM job script
 │   └── README.md                         # ARC documentation
@@ -88,7 +89,7 @@ pypsa-earth-green-auklet/
 - **Resolution**: 3-hour timesteps (8 snapshots)
 - **Network**: 140 nodes, load-weighted distribution
 - **Purpose**: Quick validation and testing
-- **Runtime**: ~30-60 minutes (local), ~15-30 minutes (ARC)
+- **Runtime**: Scenario- and environment-dependent; use Snakemake benchmark files and `sacct` (ARC) for measured timings.
 
 ### Creating New Scenarios
 
@@ -101,9 +102,10 @@ pypsa-earth-green-auklet/
 2. Update key parameters:
    ```yaml
    run:
-     name: "europe-week-140"
+     name: "europe-year-140"  # keep base-year run name to reuse existing profiles
    
    scenario:
+     opts: [Co2L-3h-week01]  # unique output label for this variant
      sopts: ["168h"]  # One week
    
    snapshots:
@@ -111,10 +113,16 @@ pypsa-earth-green-auklet/
      end: "2013-07-15"
    ```
 
-3. Run:
+3. Dry-run first:
    ```bash
-   snakemake --configfile configs/scenarios/config.europe-week-140.yaml --cores 4
+   cd pypsa-earth
+    bash scripts/run_from_base_profiles.sh \
+       configs/scenarios/config.europe-week-140.yaml \
+       results/europe-year-140/networks/elec_s_140_ec_lcopt_Co2L-3h-week01.nc \
+       4
    ```
+
+4. The script runs a dry-run first, then the real workflow with a restricted rule set.
 
 ## Naming Conventions
 
@@ -127,7 +135,9 @@ Examples:
 - `config.europe-year-140.yaml` - Europe, full year, 140 nodes
 
 ### Run Names
-Match config without "config." prefix: `europe-day-140`, `europe-week-140`
+`run.name` controls `resources/`, `networks/`, and `results/` paths.
+
+For profile reuse workflows, keep `run.name` fixed to the base-year profile directory (for example `europe-year-140`) and vary `scenario.opts` to create distinct output filenames.
 
 ### Results
 Organized by run name: `results/europe-day-140/`
@@ -153,6 +163,79 @@ results/
 ```
 
 Scenarios follow the pattern: `<region>-<time>-<nodes>` (e.g., `europe-day-140`).
+
+## Safe Profile Reuse (No Atlite Rebuilds)
+
+To run week/variant scenarios while reusing existing base-year renewable profiles:
+
+1. Keep `run.name` set to the base profile namespace (for example `europe-year-140`).
+2. Keep `enable.build_cutout: false`.
+3. Use an explicit target network file and `--allowed-rules` that exclude `build_cutout` and `build_renewable_profiles`.
+4. Use a unique `scenario.opts` suffix (for example `Co2L-3h-week01`) so outputs do not overwrite previous solved networks.
+
+Preflight check before launching (reads the config to determine required carriers):
+
+```bash
+cd pypsa-earth
+python - <<'PY'
+import os
+import sys
+import yaml
+
+def load(path):
+   if not os.path.exists(path):
+      return {}
+   with open(path, "r", encoding="utf-8") as f:
+      return yaml.safe_load(f) or {}
+
+def deep_merge(base, override):
+   for key, value in override.items():
+      if isinstance(value, dict) and isinstance(base.get(key), dict):
+         deep_merge(base[key], value)
+      else:
+         base[key] = value
+   return base
+
+config_file = "configs/scenarios/config.europe-week-140.yaml"
+cfg = {}
+for path in ("config.default.yaml", "config.yaml", config_file):
+   cfg = deep_merge(cfg, load(path))
+
+renewable = cfg.get("renewable", {}) or {}
+carriers = set(cfg.get("electricity", {}).get("renewable_carriers", []) or [])
+techs = sorted([tech for tech in renewable.keys() if tech in carriers])
+run_name = (cfg.get("run", {}) or {}).get("name", "")
+rdir = f"{run_name}/" if run_name else ""
+
+missing = []
+for tech in techs:
+   path = f"resources/{rdir}renewable_profiles/profile_{tech}.nc"
+   if not os.path.exists(path):
+      missing.append(path)
+
+if missing:
+   print("Missing renewable profiles:")
+   for path in missing:
+      print(f"  {path}")
+   sys.exit(1)
+
+print("All renewable profiles present.")
+PY
+```
+
+If any file is missing, the safe run script exits before Snakemake can build profiles.
+
+Important: do not run bare `snakemake` in this repository. The first rule in the Snakefile is `clean`, so always pass an explicit target.
+
+Safe run script (dry-run first, then real run):
+
+```bash
+cd pypsa-earth
+bash scripts/run_from_base_profiles.sh \
+   configs/scenarios/config.europe-week-140.yaml \
+   results/europe-year-140/networks/elec_s_140_ec_lcopt_Co2L-3h-week01.nc \
+   4
+```
 
 Download ARC results:
 

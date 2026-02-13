@@ -2,9 +2,8 @@
 #
 # SPDX-License-Identifier: CC0-1.0
 
-# Staging config to pre-download OSM/databundles and build annual cutout + profiles.
-# Reuse note: other scenarios must keep the same run.name, snapshots, clusters,
-# and atlite cutout settings to reuse these annual renewable profiles.
+# Dedicated profile-only config (annual, 2013 weather year).
+# Intended use: run with ARC_PROFILES_ONLY=1 to (re)build all renewable profiles.
 
 version: 0.8.0
 tutorial: false
@@ -62,7 +61,7 @@ enable:
   download_osm_data: true
   download_global_buildings: false
   build_natura_raster: false
-  build_cutout: false  # cutout already exists on ARC; keep false to avoid overwrite error
+  build_cutout: false
   progress_bar: true
   custom_busmap: false
 

@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=pypsa-earth-gurobi
-#SBATCH --partition=short,medium
+#SBATCH --partition=long
 #SBATCH --clusters=all
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=256G
-#SBATCH --time=08:00:00
+#SBATCH --time=24:00:00
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --mail-user=carlo.palazzi@eng.ox.ac.uk
 
@@ -83,6 +83,17 @@ if [[ "${ARC_SNAKE_UNLOCK:-0}" == "1" ]]; then
   "$SNAKEMAKE" --unlock
 fi
 
+run_snakemake() {
+  "$SNAKEMAKE" \
+    "$@" \
+    "${EXTRA_ARGS[@]}" \
+    -j "${CPUS}" \
+    --resources mem_mb="${MEM_MB}" \
+    --latency-wait "${LATENCY_WAIT}" \
+    --keep-going --rerun-incomplete --printshellcmds \
+    --stats "logs/snakemake-${SCENARIO}-gurobi.stats.json" 2>&1 | tee -a "$LOGFILE"
+}
+
 if [[ "${ARC_STAGE_DATA:-0}" == "1" ]]; then
   mapfile -t AVAILABLE_RULES < <("$SNAKEMAKE" --list)
   stage_targets=()
@@ -106,20 +117,58 @@ if [[ "${ARC_STAGE_DATA:-0}" == "1" ]]; then
   fi
 fi
 
+if [[ "${ARC_PROFILES_ONLY:-0}" == "1" ]]; then
+  echo "ARC_PROFILES_ONLY=1 set; building annual renewable profiles only."
+  RUN_NAME="${ARC_RUN_NAME:-}"
+  if [[ -z "$RUN_NAME" ]]; then
+    LAST_CFG="${CONFIG_FILES[-1]}"
+    if [[ -n "$LAST_CFG" && -f "$LAST_CFG" ]]; then
+      RUN_NAME=$(
+        "$PYPSA_ENV/bin/python" - "$LAST_CFG" <<'PY'
+import sys
+import yaml
+
+cfg_path = sys.argv[1]
+with open(cfg_path, "r", encoding="utf-8") as f:
+    cfg = yaml.safe_load(f) or {}
+run = cfg.get("run", {}) or {}
+print(run.get("name", ""))
+PY
+      )
+    fi
+  fi
+  PROFILE_TECHS_STR=${ARC_PROFILE_TECHS:-"onwind offwind-ac offwind-dc solar hydro csp"}
+  read -r -a PROFILE_TECHS <<< "$PROFILE_TECHS_STR"
+  PROFILE_TARGETS=()
+  for tech in "${PROFILE_TECHS[@]}"; do
+    if [[ -n "$RUN_NAME" ]]; then
+      PROFILE_TARGETS+=("resources/${RUN_NAME}/renewable_profiles/profile_${tech}.nc")
+    else
+      PROFILE_TARGETS+=("resources/renewable_profiles/profile_${tech}.nc")
+    fi
+  done
+  run_snakemake "${PROFILE_TARGETS[@]}" "${CONFIG_ARGS[@]}"
+  exit 0
+fi
+
 if [[ "${ARC_STAGE_ONLY:-0}" == "1" ]]; then
   echo "ARC_STAGE_ONLY=1 set; skipping full solve."
   exit 0
 fi
 
-run_snakemake() {
-  "$SNAKEMAKE" \
-    "$@" \
-    "${EXTRA_ARGS[@]}" \
-    -j "${CPUS}" \
-    --resources mem_mb="${MEM_MB}" \
-    --latency-wait "${LATENCY_WAIT}" \
-    --keep-going --rerun-incomplete --printshellcmds \
-    --stats "logs/snakemake-${SCENARIO}-gurobi.stats.json" 2>&1 | tee -a "$LOGFILE"
-}
+SNAKE_TARGET=${ARC_SNAKE_TARGET:-solve_all_networks}
+SNAKE_ALLOWED_RULES=${ARC_SNAKE_ALLOWED_RULES:-}
+SNAKE_FORCE_RULES=${ARC_SNAKE_FORCE_RULES:-}
+SNAKE_ARGS=()
 
-run_snakemake solve_all_networks "${CONFIG_ARGS[@]}"
+if [[ -n "$SNAKE_ALLOWED_RULES" ]]; then
+  read -r -a _allowed_rules <<< "$SNAKE_ALLOWED_RULES"
+  SNAKE_ARGS+=("--allowed-rules" "${_allowed_rules[@]}")
+fi
+
+if [[ -n "$SNAKE_FORCE_RULES" ]]; then
+  read -r -a _force_rules <<< "$SNAKE_FORCE_RULES"
+  SNAKE_ARGS+=("--forcerun" "${_force_rules[@]}")
+fi
+
+run_snakemake "$SNAKE_TARGET" "${CONFIG_ARGS[@]}" "${SNAKE_ARGS[@]}"

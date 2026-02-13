@@ -120,11 +120,13 @@ if [ -f "envs/environment.yaml" ]; then
         pip install py7zr
         pip install "tsam>=1.1.0"
         pip install fake-useragent
-        pip install chaospy
+        # Pin chaospy/numpoly to avoid pulling numpy>=2 (linopy requires numpy<2)
+        pip install "numpoly<1.3" "chaospy<4.3.21"
         pip install geopy
         pip install tqdm
         pip install pytz
         pip install ipykernel ipython jupyterlab
+        pip install googledrivedownloader
         pip install cartopy
         pip install rasterio
         pip install rioxarray

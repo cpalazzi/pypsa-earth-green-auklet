@@ -19,6 +19,11 @@ from typing import Optional, Tuple
 
 from earth_osm import gfk_download
 
+try:
+    import pulp
+except Exception:  # pragma: no cover - optional dependency
+    pulp = None
+
 
 def _parse_md5_file(md5_path: str) -> Tuple[str, Optional[str]]:
     """Read an MD5 checksum file, handling optional gzip compression."""
@@ -58,3 +63,7 @@ gfk_download._parse_md5_file = _parse_md5_file
 
 # Keep the public name used elsewhere in the codebase.
 gfk_download.verify_pbf = _verify_pbf
+
+# Compat shim: some dependencies expect pulp.list_solvers (snake case).
+if pulp is not None and not hasattr(pulp, "list_solvers") and hasattr(pulp, "listSolvers"):
+    pulp.list_solvers = pulp.listSolvers
