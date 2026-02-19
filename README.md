@@ -47,7 +47,7 @@ PyPSA-Earth is an open-source energy system model that optimizes electricity gen
 2. **Submit job:**
    ```bash
    cd pypsa-earth-green-auklet/pypsa-earth
-   sbatch ../arc/jobs/arc_snakemake_gurobi.sh europe-day-140 configs/scenarios/config.europe-day-140.yaml
+   sbatch ../arc/jobs/01_build_inputs.sh europe-day-140-build networks/europe-day-140/elec_s_140_ec_lcopt_Co2L-3h.nc configs/scenarios/config.europe-day-140.yaml
    ```
 
 3. **Download results:**
@@ -68,7 +68,8 @@ pypsa-earth-green-auklet/
 ├── arc/                                  # ARC cluster scripts
 │   ├── arc_initial_setup.sh             # Interactive setup wizard
 │   ├── build-pypsa-earth-env            # Environment builder
-│   ├── jobs/arc_snakemake_gurobi.sh     # SLURM job script
+│   ├── jobs/01_build_inputs.sh          # Step A: build inputs/profiles
+│   ├── jobs/02_solve_only.sh            # Step B: solve-only
 │   └── README.md                         # ARC documentation
 ├── notebooks/                            # Analysis notebooks
 │   ├── 000_arc_run_steps.ipynb          # ARC workflow example
@@ -146,7 +147,7 @@ Organized by run name: `results/europe-day-140/`
 
 - **Primary**: Gurobi (barrier method, optimized settings)
 - **Fallback options**: HiGHS, CPLEX, COPT
-- **Threading**: Configurable (4-64 cores)
+- **Threading**: Standardized to 48 threads on ARC submission scripts/configs
 - **Tolerance**: 1e-6 (adjustable for difficult problems)
 
 ## Results
@@ -168,9 +169,23 @@ Scenarios follow the pattern: `<region>-<time>-<nodes>` (e.g., `europe-day-140`)
 
 To run week/variant scenarios while reusing existing base-year renewable profiles:
 
+Recommended ARC sequence:
+
+1. Run Step A once to build the prepared input network.
+2. Run Step B one or more times for different solve configurations/targets.
+
+Optional convenience example (dependency submit):
+
+```bash
+BUILD_JOB=$(sbatch --parsable ../arc/jobs/01_build_inputs.sh <run-label> <prepared-network-target> <config>)
+sbatch --dependency=afterok:${BUILD_JOB} ../arc/jobs/02_solve_only.sh <run-label> <result-network-target> <config>
+```
+
+Detailed commands are in [arc/README.md](arc/README.md).
+
 1. Keep `run.name` set to the base profile namespace (for example `europe-year-140`).
 2. Keep `enable.build_cutout: false`.
-3. Use an explicit target network file and `--allowed-rules` that exclude `build_cutout` and `build_renewable_profiles`.
+3. Use explicit prepared (`networks/...`) and result (`results/...`) targets.
 4. Use a unique `scenario.opts` suffix (for example `Co2L-3h-week01`) so outputs do not overwrite previous solved networks.
 
 Preflight check before launching (reads the config to determine required carriers):

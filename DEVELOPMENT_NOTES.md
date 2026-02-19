@@ -97,42 +97,55 @@ Then run checks/submissions in that shell, for example:
 
 ```bash
 ../arc/arc_check_run_inputs.sh configs/scenarios/config.europe-week-140.yaml
-ARC_SNAKE_TARGET="results/europe-year-140/networks/elec_s_140_ec_lcopt_Co2L-3h-week01.nc" \
-sbatch ../arc/jobs/arc_snakemake_gurobi.sh europe-week-140 configs/scenarios/config.europe-week-140.yaml
+sbatch ../arc/jobs/02_solve_only.sh \
+  europe-week-140-solve \
+  results/europe-year-140/networks/elec_s_140_ec_lcopt_Co2L-3h-week01.nc \
+  configs/scenarios/config.europe-week-140.yaml
 ```
 
 ### Running Models
 ```bash
 cd pypsa-earth
-sbatch ../arc/jobs/arc_snakemake_gurobi.sh europe-day-140 configs/scenarios/config.europe-day-140.yaml
+sbatch ../arc/jobs/01_build_inputs.sh europe-day-140-build networks/europe-day-140/elec_s_140_ec_lcopt_Co2L-3h.nc configs/scenarios/config.europe-day-140.yaml
 ```
 
 ### Monitoring Jobs
 - Check status: `squeue -u <user>`
-- Watch log: `tail -f logs/snakemake-europe-day-140-*-gurobi.log`
+- Watch logs: `tail -f logs/snakemake-*-build-inputs.log` and `tail -f logs/snakemake-*-solve-only.log`
 - Job details: `sacct -j <jobid> --format=JobID,JobName,State,Elapsed,MaxRSS`
 
 ### Week Run Readiness (reuse annual profiles)
 From `pypsa-earth/` on ARC:
 
-1. Verify required profile files exist for the configured `run.name`:
+1. Submit Step A build-inputs job (prepared network target):
+  ```bash
+  sbatch ../arc/jobs/01_build_inputs.sh \
+    europe-week-140-build \
+    networks/europe-year-140/elec_s_140_ec_lcopt_Co2L-3h-week01.nc \
+    configs/scenarios/config.europe-week-140.yaml
+  ```
+2. Verify required profile files exist for the solve config:
   ```bash
   ../arc/arc_check_run_inputs.sh configs/scenarios/config.europe-week-140.yaml
   ```
-2. If any profile is missing (for example `onwind`), rebuild only missing technologies:
+3. Recommended: after Step A completes, submit one or more Step B solve-only jobs (for different configurations/targets):
   ```bash
-  ARC_PROFILES_ONLY=1 ARC_PROFILE_TECHS="onwind" \
-  sbatch ../arc/jobs/arc_snakemake_gurobi.sh europe-year-140-profiles configs/scenarios/config.europe-year-140-profiles.yaml
+  sbatch ../arc/jobs/02_solve_only.sh \
+    europe-week-140-solve \
+    results/europe-year-140/networks/elec_s_140_ec_lcopt_Co2L-3h-week01.nc \
+    configs/scenarios/config.europe-week-140.yaml
   ```
-3. Submit a dry run for the exact week network target:
+4. Optional convenience: submit Step B with dependency on Step A:
   ```bash
-  ARC_SNAKE_DRYRUN=1 ARC_SNAKE_TARGET="results/europe-year-140/networks/elec_s_140_ec_lcopt_Co2L-3h-week01.nc" \
-  sbatch ../arc/jobs/arc_snakemake_gurobi.sh europe-week-140 configs/scenarios/config.europe-week-140.yaml
-  ```
-4. Submit the real week solve with the same target:
-  ```bash
-  ARC_SNAKE_TARGET="results/europe-year-140/networks/elec_s_140_ec_lcopt_Co2L-3h-week01.nc" \
-  sbatch ../arc/jobs/arc_snakemake_gurobi.sh europe-week-140 configs/scenarios/config.europe-week-140.yaml
+  BUILD_JOB=$(sbatch --parsable ../arc/jobs/01_build_inputs.sh \
+    europe-week-140-build \
+    networks/europe-year-140/elec_s_140_ec_lcopt_Co2L-3h-week01.nc \
+    configs/scenarios/config.europe-week-140.yaml)
+
+  sbatch --dependency=afterok:${BUILD_JOB} ../arc/jobs/02_solve_only.sh \
+    europe-week-140-solve \
+    results/europe-year-140/networks/elec_s_140_ec_lcopt_Co2L-3h-week01.nc \
+    configs/scenarios/config.europe-week-140.yaml
   ```
 
 ### TODO: Build annual profiles only (clear recipe)
@@ -145,10 +158,12 @@ Checklist (run from `pypsa-earth/` on ARC):
   ```bash
   ../arc/arc_check_run_inputs.sh configs/scenarios/config.europe-year-140-profiles.yaml
   ```
-- [ ] Submit profile-only job (all technologies):
+- [ ] Submit Step A build-inputs job for annual prepared network:
   ```bash
-  ARC_PROFILES_ONLY=1 \
-  sbatch ../arc/jobs/arc_snakemake_gurobi.sh europe-year-140-profiles configs/scenarios/config.europe-year-140-profiles.yaml
+  sbatch ../arc/jobs/01_build_inputs.sh \
+    europe-year-140-build \
+    networks/europe-year-140/elec_s_140_ec_lcopt_Co2L-3h.nc \
+    configs/scenarios/config.europe-year-140-profiles.yaml
   ```
 - [ ] Confirm files were written:
   ```bash
@@ -169,11 +184,7 @@ Notes on 2013 data availability and retrieval:
 - By default, this project is configured around weather year 2013 (`snapshots` and `cutout-2013-era5`).
 - Without extra preparation, 2013 demand/cutout-related inputs are the ones expected to exist or be retrieved.
 - PyPSA-Earth fetches these via `retrieve_databundle_light` when `enable.retrieve_databundle: true`.
-- If missing databundles are prompted interactively, batch jobs can fail with EOF; to avoid this, stage first with:
-  ```bash
-  ARC_STAGE_DATA=1 ARC_STAGE_ONLY=1 \
-  sbatch ../arc/jobs/arc_snakemake_gurobi.sh europe-year-140-stage configs/scenarios/config.europe-year-140-profiles.yaml
-  ```
+- If missing databundles are prompted interactively, run non-interactive retrieval first and then resubmit Step A.
 
 ### Downloading Results
 From your local machine:
