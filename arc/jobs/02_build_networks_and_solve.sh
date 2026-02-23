@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=pypsa-earth-solve-only
+#SBATCH --job-name=pypsa-earth-build-networks
 #SBATCH --partition=short
 #SBATCH --clusters=all
 #SBATCH --nodes=1
@@ -11,8 +11,8 @@
 #SBATCH --mail-user=carlo.palazzi@eng.ox.ac.uk
 
 if [[ $# -lt 3 ]]; then
-  echo "Usage: sbatch ../arc/jobs/02_solve_only.sh <run-label> <result-network-target> <configfile> [configfile ...]" >&2
-  echo "Example: sbatch ../arc/jobs/02_solve_only.sh europe-week-140-solve results/europe-year-140/networks/elec_s_140_ec_lcopt_Co2L-3h-week01.nc configs/scenarios/config.europe-week-140.yaml" >&2
+  echo "Usage: sbatch ../arc/jobs/02_build_networks_and_solve.sh <run-label> <result-network-target> <configfile> [configfile ...]" >&2
+  echo "Example: sbatch ../arc/jobs/02_build_networks_and_solve.sh europe-week-140 results/europe-year-140/networks/elec_s_140_ec_lcopt_Co2L-3h-week01.nc configs/scenarios/config.europe-week-140.yaml" >&2
   exit 2
 fi
 
@@ -47,22 +47,6 @@ WORKDIR=${ARC_WORKDIR:-${SLURM_SUBMIT_DIR:-$DEFAULT_WORKDIR}}
 if [[ ! -f "$WORKDIR/Snakefile" && -f "$DEFAULT_WORKDIR/Snakefile" ]]; then
   echo "WARN: No Snakefile in WORKDIR '$WORKDIR'; falling back to '$DEFAULT_WORKDIR'" >&2
   WORKDIR="$DEFAULT_WORKDIR"
-fi
-
-RESULT_REL="${RESULT_NETWORK_TARGET#results/}"
-if [[ "$RESULT_REL" == "$RESULT_NETWORK_TARGET" ]]; then
-  echo "ERROR: Expected result target under results/..., got: $RESULT_NETWORK_TARGET" >&2
-  echo "Provide a result target like results/<run>/networks/<file>.nc" >&2
-  exit 2
-fi
-
-PREPARED_NETWORK_TARGET="networks/${RESULT_REL/\/networks\//\/}"
-
-if [[ ! -f "$WORKDIR/$PREPARED_NETWORK_TARGET" ]]; then
-  echo "ERROR: Prepared network input missing for solve-only run:" >&2
-  echo "  $WORKDIR/$PREPARED_NETWORK_TARGET" >&2
-  echo "Run Step A first: sbatch ../arc/jobs/01_build_inputs.sh <run-label> $PREPARED_NETWORK_TARGET <configfile>" >&2
-  exit 2
 fi
 
 CHECK_SCRIPT_CANDIDATES=(
@@ -109,7 +93,7 @@ cd "$WORKDIR"
 mkdir -p logs
 export PYTHONPATH="$WORKDIR${PYTHONPATH:+:$PYTHONPATH}"
 
-LOGFILE="logs/snakemake-${SCENARIO}-$(date +%Y%m%d-%H%M%S)-solve-only.log"
+LOGFILE="logs/snakemake-${SCENARIO}-$(date +%Y%m%d-%H%M%S)-build-networks.log"
 echo "Snakemake log: $LOGFILE"
 
 MEM_MB=${SLURM_MEM_PER_NODE:-256000}
@@ -120,12 +104,26 @@ export OPENBLAS_NUM_THREADS=${OPENBLAS_NUM_THREADS:-$CPUS}
 export GRB_THREADS=${GRB_THREADS:-$CPUS}
 LATENCY_WAIT=${ARC_SNAKE_LATENCY_WAIT:-60}
 
+ALLOWED_RULES=(
+  retrieve_cost_data
+  base_network
+  build_bus_regions
+  build_demand_profiles
+  build_powerplants
+  add_electricity
+  simplify_network
+  cluster_network
+  add_extra_components
+  prepare_network
+  solve_network
+)
+
 "$SNAKEMAKE" \
   "$RESULT_NETWORK_TARGET" \
-  --allowed-rules solve_network \
+  --allowed-rules "${ALLOWED_RULES[@]}" \
   "${CONFIG_ARGS[@]}" \
   -j "${CPUS}" \
   --resources mem_mb="${MEM_MB}" \
   --latency-wait "${LATENCY_WAIT}" \
   --keep-going --rerun-incomplete --printshellcmds \
-  --stats "logs/snakemake-${SCENARIO}-solve-only.stats.json" 2>&1 | tee -a "$LOGFILE"
+  --stats "logs/snakemake-${SCENARIO}-build-networks.stats.json" 2>&1 | tee -a "$LOGFILE"

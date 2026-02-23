@@ -25,8 +25,8 @@ bash arc_initial_setup.sh
 Submission now uses two workflow scripts:
 
 ```bash
-sbatch ../arc/jobs/01_build_inputs.sh <run-label> <prepared-network-target> <config-file>
-sbatch ../arc/jobs/02_solve_only.sh <run-label> <result-network-target> <config-file>
+sbatch ../arc/jobs/01_build_profiles.sh <run-label> <config-file>
+sbatch ../arc/jobs/02_build_networks_and_solve.sh <run-label> <result-network-target> <config-file>
 ```
 
 ### `arc_check_run_inputs.sh`
@@ -69,31 +69,30 @@ sbatch arc/build-pypsa-earth-env
   sed -n '1,40p' arc/build-pypsa-earth-env
   ```
 
-### `jobs/01_build_inputs.sh`
-Step A submission script.
+### `jobs/01_build_profiles.sh`
+Step 1 submission script.
 
 **What it does:**
-- Runs one Snakemake build for the requested prepared-network target
+- Builds renewable profiles (Atlite-heavy stage) for the given config
 - Uses standard PyPSA-Earth/Snakemake dependency resolution and data retrieval behavior
-- Includes demand profile and renewable profile generation through normal DAG dependencies
 
 **Usage:**
 ```bash
 cd pypsa-earth
-sbatch ../arc/jobs/01_build_inputs.sh <run-label> <prepared-network-target> <config-file> [additional-configs...]
+sbatch ../arc/jobs/01_build_profiles.sh <run-label> <config-file> [additional-configs...]
 ```
 
-### `jobs/02_solve_only.sh`
-Step B submission script.
+### `jobs/02_build_networks_and_solve.sh`
+Step 2 submission script.
 
 **What it does:**
-- Runs solve-only (`--allowed-rules solve_network`)
-- Requires the prepared network input from Step A to already exist
+- Builds networks and solves while reusing prebuilt renewable profiles
+- Fails fast if required profiles are missing
 
 **Usage:**
 ```bash
 cd pypsa-earth
-sbatch ../arc/jobs/02_solve_only.sh <run-label> <result-network-target> <config-file> [additional-configs...]
+sbatch ../arc/jobs/02_build_networks_and_solve.sh <run-label> <result-network-target> <config-file> [additional-configs...]
 ```
 
 **Environment variables you can set (advanced):**
@@ -146,8 +145,8 @@ ssh <user>@arc-login.arc.ox.ac.uk 'squeue -u <user>'
 # Validate profile inputs for week reuse
 ssh <user>@arc-login.arc.ox.ac.uk 'cd /data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth && ../arc/arc_check_run_inputs.sh configs/scenarios/config.europe-week-140.yaml'
 
-# Submit Step A build-inputs run
-ssh <user>@arc-login.arc.ox.ac.uk 'cd /data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth && sbatch ../arc/jobs/01_build_inputs.sh europe-week-140-build networks/europe-year-140/elec_s_140_ec_lcopt_Co2L-3h-week01.nc configs/scenarios/config.europe-week-140.yaml'
+# Submit Step 1 build-profiles run
+ssh <user>@arc-login.arc.ox.ac.uk 'cd /data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth && sbatch ../arc/jobs/01_build_profiles.sh europe-year-140-profiles configs/scenarios/config.europe-year-140-profiles.yaml'
 ```
 
 Tips:
@@ -171,7 +170,7 @@ Then run ARC commands directly in that shell (no nested ssh needed):
 ../arc/arc_check_run_inputs.sh configs/scenarios/config.europe-week-140.yaml
 ```
 
-Submit directly with `01_build_inputs.sh` for Step A and `02_solve_only.sh` for Step B.
+Submit directly with `01_build_profiles.sh` for Step 1 and `02_build_networks_and_solve.sh` for Step 2.
 
 ### 1. Initial Setup (Once)
 ```bash
@@ -210,45 +209,43 @@ Run all commands from:
 cd /data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth
 ```
 
-#### Step A: Build inputs (data + demand profiles + renewable profiles)
+#### Step 1: Build renewable profiles (Atlite-heavy stage)
 
-Submit build-inputs job with explicit prepared-network target:
+Submit build-profiles job:
 
 ```bash
-sbatch ../arc/jobs/01_build_inputs.sh \
-  europe-week-140-build \
-  networks/europe-year-140/elec_s_140_ec_lcopt_Co2L-3h-week01.nc \
-  configs/scenarios/config.europe-week-140.yaml
+sbatch ../arc/jobs/01_build_profiles.sh \
+  europe-year-140-profiles \
+  configs/scenarios/config.europe-year-140-profiles.yaml
 ```
 
-Verify expected profile outputs after Step A:
+Verify expected profile outputs after Step 1:
 
 ```bash
 ../arc/arc_check_run_inputs.sh configs/scenarios/config.europe-week-140.yaml
 ls -lh resources/europe-year-140/renewable_profiles/profile_*.nc
 ```
 
-#### Step B: Solve-only submission using existing prepared network/profiles
+#### Step 2: Build networks and solve (reuses profiles from Step 1)
 
-Submit solve-only job with explicit result target:
+Submit build-networks job with explicit result target:
 
 ```bash
-sbatch ../arc/jobs/02_solve_only.sh \
-  europe-week-140-solve \
+sbatch ../arc/jobs/02_build_networks_and_solve.sh \
+  europe-week-140 \
   results/europe-year-140/networks/elec_s_140_ec_lcopt_Co2L-3h-week01.nc \
   configs/scenarios/config.europe-week-140.yaml
 ```
 
-Optional: submit Step B with an explicit dependency on Step A in one sequence:
+Optional: submit Step 2 with an explicit dependency on Step 1 in one sequence:
 
 ```bash
-BUILD_JOB=$(sbatch --parsable ../arc/jobs/01_build_inputs.sh \
-  europe-week-140-build \
-  networks/europe-year-140/elec_s_140_ec_lcopt_Co2L-3h-week01.nc \
-  configs/scenarios/config.europe-week-140.yaml)
+BUILD_JOB=$(sbatch --parsable ../arc/jobs/01_build_profiles.sh \
+  europe-year-140-profiles \
+  configs/scenarios/config.europe-year-140-profiles.yaml)
 
-sbatch --dependency=afterok:${BUILD_JOB} ../arc/jobs/02_solve_only.sh \
-  europe-week-140-solve \
+sbatch --dependency=afterok:${BUILD_JOB} ../arc/jobs/02_build_networks_and_solve.sh \
+  europe-week-140 \
   results/europe-year-140/networks/elec_s_140_ec_lcopt_Co2L-3h-week01.nc \
   configs/scenarios/config.europe-week-140.yaml
 ```
@@ -259,8 +256,8 @@ sbatch --dependency=afterok:${BUILD_JOB} ../arc/jobs/02_solve_only.sh \
 squeue -u <user>
 
 # Watch log file
-tail -f logs/snakemake-*-build-inputs.log
-tail -f logs/snakemake-*-solve-only.log
+tail -f logs/snakemake-*-build-profiles.log
+tail -f logs/snakemake-*-build-networks.log
 
 # Check job accounting
 sacct -j <jobid> --format=JobID,JobName,State,Elapsed,MaxRSS,NodeList

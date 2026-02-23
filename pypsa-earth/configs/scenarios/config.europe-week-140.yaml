@@ -1,0 +1,88 @@
+# SPDX-FileCopyrightText:  PyPSA-Earth and PyPSA-Eur Authors
+#
+# SPDX-License-Identifier: CC0-1.0
+
+# Europe 140-node run for first week of 2013 with 3h resolution.
+# Uses existing annual profiles by keeping the same run.name.
+
+version: 0.8.0
+tutorial: false
+
+logging:
+  level: INFO
+  format: "%(levelname)s:%(name)s:%(message)s"
+
+foresight: overnight
+
+# European countries - EU27 + UK, Norway, Switzerland, and Balkans
+countries:
+  - DE
+  - FR
+  - GB
+  - IT
+  - ES
+  - PL
+  - NL
+  - BE
+  - CZ
+  - RO
+  - SE
+  - PT
+  - GR
+  - HU
+  - AT
+  - BG
+  - DK
+  - FI
+  - SK
+  - IE
+  - HR
+  - LT
+  - SI
+  - LV
+  - EE
+  - CY
+  - LU
+  - MT
+  - "NO"
+  - CH
+  - RS
+  - BA
+  - AL
+  - MK
+  - ME
+
+enable:
+  retrieve_databundle: true
+  retrieve_databundle_sector: false
+  retrieve_cost_data: true
+  download_osm_data: true
+  download_global_buildings: false
+  build_natura_raster: false
+  build_cutout: false  # keep false so the existing cutout/profiles are reused
+  progress_bar: true
+  custom_busmap: false
+
+run:
+  name: "europe-year-140"  # keep the same run name to reuse annual profiles
+  sector_name: ""
+  shared_cutouts: true
+  allow_scenario_failure: false
+
+scenario:
+  simpl: [""]
+  ll: ["copt"]
+  clusters: [140]
+  # Keep 3h resolution marker; add week label to distinguish outputs.
+  opts: [Co2L-3h-week01]
+  planning_horizons:
+  - 2030
+  sopts:
+  - "168h"
+  demand:
+  - "AB"
+
+snapshots:
+  start: "2013-01-01"
+  end: "2013-01-08"
+  inclusive: "left"

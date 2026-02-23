@@ -418,6 +418,8 @@ costs:
     lifetime: 25
     CO2 intensity: 0
     discount rate: 0.07
+  efficiency:
+    CCGT: 0.58
   marginal_cost: # EUR/MWh
     solar: 0.01
     onwind: 0.015

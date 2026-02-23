@@ -27,6 +27,11 @@ Examples:
 - `config.europe-week-140.yaml` - Europe, 1 week, 140 nodes
 - `config.europe-year-140.yaml` - Europe, full year, 140 nodes
 
+CO2 variants (full-year, 140 nodes):
+- `config.europe-year-140.yaml` - Explicit limited CO2 (default run)
+- `config.europe-year-140-co2-zero.yaml` - Zero CO2 cap
+- `config.europe-year-140-co2-uncapped.yaml` - Effectively uncapped CO2
+
 ### Run Names
 Match configuration names without the "config." prefix:
 - `europe-day-140`
@@ -97,8 +102,8 @@ Then run checks/submissions in that shell, for example:
 
 ```bash
 ../arc/arc_check_run_inputs.sh configs/scenarios/config.europe-week-140.yaml
-sbatch ../arc/jobs/02_solve_only.sh \
-  europe-week-140-solve \
+sbatch ../arc/jobs/02_build_networks_and_solve.sh \
+  europe-week-140 \
   results/europe-year-140/networks/elec_s_140_ec_lcopt_Co2L-3h-week01.nc \
   configs/scenarios/config.europe-week-140.yaml
 ```
@@ -106,49 +111,52 @@ sbatch ../arc/jobs/02_solve_only.sh \
 ### Running Models
 ```bash
 cd pypsa-earth
-sbatch ../arc/jobs/01_build_inputs.sh europe-day-140-build networks/europe-day-140/elec_s_140_ec_lcopt_Co2L-3h.nc configs/scenarios/config.europe-day-140.yaml
+sbatch ../arc/jobs/01_build_profiles.sh europe-year-140-profiles configs/scenarios/config.europe-year-140-profiles.yaml
+sbatch ../arc/jobs/02_build_networks_and_solve.sh europe-day-140 results/europe-day-140/networks/elec_s_140_ec_lcopt_Co2L-3h.nc configs/scenarios/config.europe-day-140.yaml
 ```
 
 ### Monitoring Jobs
 - Check status: `squeue -u <user>`
-- Watch logs: `tail -f logs/snakemake-*-build-inputs.log` and `tail -f logs/snakemake-*-solve-only.log`
+- Watch logs: `tail -f logs/snakemake-*-build-profiles.log` and `tail -f logs/snakemake-*-build-networks.log`
 - Job details: `sacct -j <jobid> --format=JobID,JobName,State,Elapsed,MaxRSS`
 
 ### Week Run Readiness (reuse annual profiles)
 From `pypsa-earth/` on ARC:
 
-1. Submit Step A build-inputs job (prepared network target):
+1. Submit Step 1 build-profiles job (annual profiles):
   ```bash
-  sbatch ../arc/jobs/01_build_inputs.sh \
-    europe-week-140-build \
-    networks/europe-year-140/elec_s_140_ec_lcopt_Co2L-3h-week01.nc \
-    configs/scenarios/config.europe-week-140.yaml
+  sbatch ../arc/jobs/01_build_profiles.sh \
+    europe-year-140-profiles \
+    configs/scenarios/config.europe-year-140-profiles.yaml
   ```
 2. Verify required profile files exist for the solve config:
   ```bash
   ../arc/arc_check_run_inputs.sh configs/scenarios/config.europe-week-140.yaml
   ```
-3. Recommended: after Step A completes, submit one or more Step B solve-only jobs (for different configurations/targets):
+3. Recommended: after Step 1 completes, submit one or more Step 2 build+solve jobs (for different configurations/targets):
   ```bash
-  sbatch ../arc/jobs/02_solve_only.sh \
-    europe-week-140-solve \
+  sbatch ../arc/jobs/02_build_networks_and_solve.sh \
+    europe-week-140 \
     results/europe-year-140/networks/elec_s_140_ec_lcopt_Co2L-3h-week01.nc \
     configs/scenarios/config.europe-week-140.yaml
   ```
-4. Optional convenience: submit Step B with dependency on Step A:
+4. Optional convenience: submit Step 2 with dependency on Step 1:
   ```bash
-  BUILD_JOB=$(sbatch --parsable ../arc/jobs/01_build_inputs.sh \
-    europe-week-140-build \
-    networks/europe-year-140/elec_s_140_ec_lcopt_Co2L-3h-week01.nc \
-    configs/scenarios/config.europe-week-140.yaml)
+  BUILD_JOB=$(sbatch --parsable ../arc/jobs/01_build_profiles.sh \
+    europe-year-140-profiles \
+    configs/scenarios/config.europe-year-140-profiles.yaml)
 
-  sbatch --dependency=afterok:${BUILD_JOB} ../arc/jobs/02_solve_only.sh \
-    europe-week-140-solve \
+  sbatch --dependency=afterok:${BUILD_JOB} ../arc/jobs/02_build_networks_and_solve.sh \
+    europe-week-140 \
     results/europe-year-140/networks/elec_s_140_ec_lcopt_Co2L-3h-week01.nc \
     configs/scenarios/config.europe-week-140.yaml
   ```
 
-### TODO: Build annual profiles only (clear recipe)
+### Annual variants
+
+Run Step 2 with the desired config to build a new prepared network per variant.
+
+### Build annual profiles only
 
 Use dedicated config: `configs/scenarios/config.europe-year-140-profiles.yaml`
 
@@ -158,11 +166,10 @@ Checklist (run from `pypsa-earth/` on ARC):
   ```bash
   ../arc/arc_check_run_inputs.sh configs/scenarios/config.europe-year-140-profiles.yaml
   ```
-- [ ] Submit Step A build-inputs job for annual prepared network:
+- [ ] Submit Step 1 build-profiles job for annual profiles:
   ```bash
-  sbatch ../arc/jobs/01_build_inputs.sh \
-    europe-year-140-build \
-    networks/europe-year-140/elec_s_140_ec_lcopt_Co2L-3h.nc \
+  sbatch ../arc/jobs/01_build_profiles.sh \
+    europe-year-140-profiles \
     configs/scenarios/config.europe-year-140-profiles.yaml
   ```
 - [ ] Confirm files were written:
@@ -184,7 +191,7 @@ Notes on 2013 data availability and retrieval:
 - By default, this project is configured around weather year 2013 (`snapshots` and `cutout-2013-era5`).
 - Without extra preparation, 2013 demand/cutout-related inputs are the ones expected to exist or be retrieved.
 - PyPSA-Earth fetches these via `retrieve_databundle_light` when `enable.retrieve_databundle: true`.
-- If missing databundles are prompted interactively, run non-interactive retrieval first and then resubmit Step A.
+- If missing databundles are prompted interactively, run non-interactive retrieval first and then resubmit Step 1.
 
 ### Downloading Results
 From your local machine:

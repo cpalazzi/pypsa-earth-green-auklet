@@ -373,9 +373,13 @@ if __name__ == "__main__":
             n = apply_time_segmentation(n, m.group(0)[:-3], solver_name)
             break
 
-    for o in opts:
-        if "Co2L" in o:
-            m = re.findall("[0-9]*\.?[0-9]+$", o)
+    co2limit = None
+    co2_opts = [o for o in opts if re.search("co2", o, re.IGNORECASE)]
+    co2l_opt = next((o for o in opts if "Co2L" in o), None)
+
+    if co2_opts:
+        if co2l_opt:
+            m = re.findall("[0-9]*\.?[0-9]+$", co2l_opt)
             if snakemake.params.electricity["automatic_emission"]:
                 country_names = n.buses.country.unique()
                 emission_year = snakemake.params.electricity[
@@ -394,8 +398,18 @@ if __name__ == "__main__":
             else:
                 co2limit = float(snakemake.params.electricity["co2limit"])
                 logger.info("Setting CO2 limit according to config value.")
+        else:
+            cfg_limit = snakemake.params.electricity.get("co2limit")
+            if cfg_limit is None:
+                logger.warning(
+                    "CO2 option detected but electricity.co2limit is missing; skipping CO2 constraint."
+                )
+            else:
+                co2limit = float(cfg_limit)
+                logger.info("Setting CO2 limit according to config value.")
+
+        if co2limit is not None:
             add_co2limit(n, co2limit, Nyears)
-            break
 
     for o in opts:
         if "CH4L" in o:

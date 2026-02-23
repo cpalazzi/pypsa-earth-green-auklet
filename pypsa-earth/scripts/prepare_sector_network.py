@@ -488,6 +488,21 @@ def add_hydrogen(n, costs):
         lifetime=costs.at["fuel cell", "lifetime"],
     )
 
+    if "CCGT H2" in costs.index:
+        n.madd(
+            "Link",
+            spatial.nodes + " CCGT H2",
+            bus0=spatial.nodes + " H2",
+            bus1=spatial.nodes,
+            p_nom_extendable=True,
+            carrier="CCGT H2",
+            efficiency=costs.at["CCGT H2", "efficiency"],
+            # NB: fixed cost is per MWel
+            capital_cost=costs.at["CCGT H2", "fixed"]
+            * costs.at["CCGT H2", "efficiency"],
+            lifetime=costs.at["CCGT H2", "lifetime"],
+        )
+
     cavern_nodes = pd.DataFrame()
 
     if snakemake.params.sector_options["hydrogen"]["underground_storage"]:

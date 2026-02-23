@@ -44,10 +44,11 @@ PyPSA-Earth is an open-source energy system model that optimizes electricity gen
    bash arc/arc_initial_setup.sh
    ```
 
-2. **Submit job:**
+2. **Submit jobs:**
    ```bash
    cd pypsa-earth-green-auklet/pypsa-earth
-   sbatch ../arc/jobs/01_build_inputs.sh europe-day-140-build networks/europe-day-140/elec_s_140_ec_lcopt_Co2L-3h.nc configs/scenarios/config.europe-day-140.yaml
+   sbatch ../arc/jobs/01_build_profiles.sh europe-year-140-profiles configs/scenarios/config.europe-year-140-profiles.yaml
+   sbatch ../arc/jobs/02_build_networks_and_solve.sh europe-day-140 results/europe-day-140/networks/elec_s_140_ec_lcopt_Co2L-3h.nc configs/scenarios/config.europe-day-140.yaml
    ```
 
 3. **Download results:**
@@ -68,8 +69,8 @@ pypsa-earth-green-auklet/
 ├── arc/                                  # ARC cluster scripts
 │   ├── arc_initial_setup.sh             # Interactive setup wizard
 │   ├── build-pypsa-earth-env            # Environment builder
-│   ├── jobs/01_build_inputs.sh          # Step A: build inputs/profiles
-│   ├── jobs/02_solve_only.sh            # Step B: solve-only
+│   ├── jobs/01_build_profiles.sh        # Step 1: build renewable profiles
+│   ├── jobs/02_build_networks_and_solve.sh # Step 2: build networks + solve
 │   └── README.md                         # ARC documentation
 ├── notebooks/                            # Analysis notebooks
 │   ├── 000_arc_run_steps.ipynb          # ARC workflow example
@@ -91,6 +92,18 @@ pypsa-earth-green-auklet/
 - **Network**: 140 nodes, load-weighted distribution
 - **Purpose**: Quick validation and testing
 - **Runtime**: Scenario- and environment-dependent; use Snakemake benchmark files and `sacct` (ARC) for measured timings.
+
+#### europe-year-140 (default limited CO2)
+- **Geographic scope**: 35 European countries
+- **Time range**: 2013 full year
+- **Resolution**: 3-hour timesteps
+- **Network**: 140 nodes, load-weighted distribution
+- **CO2 cap**: Explicitly limited (default European cap)
+- **Purpose**: Baseline annual run used for comparisons
+
+#### europe-year-140 CO2 variants
+- `config.europe-year-140-co2-zero.yaml`: zero CO2 cap
+- `config.europe-year-140-co2-uncapped.yaml`: effectively uncapped CO2
 
 ### Creating New Scenarios
 
@@ -134,6 +147,8 @@ Examples:
 - `config.europe-day-140.yaml` - Europe, 1 day, 140 nodes
 - `config.europe-week-140.yaml` - Europe, 1 week, 140 nodes
 - `config.europe-year-140.yaml` - Europe, full year, 140 nodes
+- `config.europe-year-140-co2-zero.yaml` - Europe, full year, zero CO2 cap
+- `config.europe-year-140-co2-uncapped.yaml` - Europe, full year, uncapped CO2
 
 ### Run Names
 `run.name` controls `resources/`, `networks/`, and `results/` paths.
@@ -171,22 +186,14 @@ To run week/variant scenarios while reusing existing base-year renewable profile
 
 Recommended ARC sequence:
 
-1. Run Step A once to build the prepared input network.
-2. Run Step B one or more times for different solve configurations/targets.
-
-Optional convenience example (dependency submit):
-
-```bash
-BUILD_JOB=$(sbatch --parsable ../arc/jobs/01_build_inputs.sh <run-label> <prepared-network-target> <config>)
-sbatch --dependency=afterok:${BUILD_JOB} ../arc/jobs/02_solve_only.sh <run-label> <result-network-target> <config>
-```
+1. Run Step 1 once to build renewable profiles.
+2. Run Step 2 one or more times for different solve configurations/targets.
 
 Detailed commands are in [arc/README.md](arc/README.md).
 
 1. Keep `run.name` set to the base profile namespace (for example `europe-year-140`).
 2. Keep `enable.build_cutout: false`.
-3. Use explicit prepared (`networks/...`) and result (`results/...`) targets.
-4. Use a unique `scenario.opts` suffix (for example `Co2L-3h-week01`) so outputs do not overwrite previous solved networks.
+3. Use a unique `scenario.opts` suffix (for example `Co2L-3h-week01`) so outputs do not overwrite previous solved networks.
 
 Preflight check before launching (reads the config to determine required carriers):
 
