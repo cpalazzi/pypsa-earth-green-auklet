@@ -96,7 +96,7 @@ co2_budget:
   co2base_value: co2limit
 
 electricity:
-  co2limit: 0.0
+  co2limit: 1.0e1
 
 atlite:
   nprocesses: 4
