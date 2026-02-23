@@ -6,12 +6,13 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+*.log
 
 # Jupyter
 **/.ipynb_checkpoints
 
 # Results and outputs
-results/
+results/**
 !results/
 !results/.gitkeep
 logs/

@@ -59,12 +59,7 @@ playground/
 .venv/
 venv/
 
-# Specific configuration files
-configs/scenarios/config.*.yaml
-!configs/scenarios/config.NG.yaml
-!configs/scenarios/config.europe-day-140.yaml
-!configs/scenarios/config.europe-year-140-stage.yaml
-!configs/scenarios/config.europe-year-140-profiles.yaml
+
 
 # VS Code-related files
 .vscode
