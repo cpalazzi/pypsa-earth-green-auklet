@@ -102,25 +102,71 @@ Then run checks/submissions in that shell, for example:
 
 ```bash
 ../arc/arc_check_run_inputs.sh configs/scenarios/config.europe-week-140.yaml
-sbatch ../arc/jobs/02_build_networks_and_solve.sh \
-  europe-week-140 \
-  results/europe-year-140/networks/elec_s_140_ec_lcopt_Co2L-3h-week01.nc \
-  configs/scenarios/config.europe-week-140.yaml
+sbatch ../arc/jobs/02_build_sector_data.sh \
+  europe-year-140-co2-zero-h2-sector-prep \
+  configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml
+
+sbatch ../arc/jobs/03_build_networks_and_solve_sector.sh \
+  europe-year-140-co2-zero-h2-sector \
+  configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml
 ```
 
 ### Running Models
 ```bash
 cd pypsa-earth
 sbatch ../arc/jobs/01_build_profiles.sh europe-year-140-profiles configs/scenarios/config.europe-year-140-profiles.yaml
-sbatch ../arc/jobs/02_build_networks_and_solve.sh europe-day-140 results/europe-day-140/networks/elec_s_140_ec_lcopt_Co2L-3h.nc configs/scenarios/config.europe-day-140.yaml
+sbatch ../arc/jobs/02_build_sector_data.sh europe-year-140-co2-zero-h2-sector-prep configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml
+sbatch ../arc/jobs/03_build_networks_and_solve_sector.sh europe-year-140-co2-zero-h2-sector configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml
+```
+
+Recommended sector sequence:
+1. `01_build_profiles.sh` (renewable profiles)
+2. `02_build_sector_data.sh` (sector preprocessing/pre-networks)
+3. `03_build_networks_and_solve_sector.sh` (final build+solve)
+
+### Sector-coupled ARC prerequisites
+
+Sector-coupled runs (`03_build_networks_and_solve_sector.sh`) require additional inputs that are available locally but not guaranteed on ARC after clone.
+This happens because `data/` and `cutouts/` are synced ad hoc and earlier electricity-only runs may not touch sector-specific files.
+
+Required files:
+- `data/demand/unsd/paths/Energy_Statistics_Database.xlsx`
+- `data/demand/fuel_shares.csv`
+- `data/demand/growth_factors_cagr.csv`
+- `data/demand/district_heating.csv`
+- `data/demand/efficiency_gains_cagr.csv`
+- `cutouts/cutout-2013-era5.nc`
+- `data/emobility/KFZ__count`
+- `data/emobility/Pkw__count`
+- `data/heat_load_profile_BDEW.csv`
+- `data/unsd_transactions.csv`
+
+Recommended full pre-sync before submitting sector runs:
+
+```bash
+rsync -av pypsa-earth/data/demand/ \
+  <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth/data/demand/
+
+rsync -av pypsa-earth/cutouts/cutout-2013-era5.nc \
+  <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth/cutouts/
+
+rsync -av pypsa-earth/data/emobility/ \
+  <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth/data/emobility/
+
+rsync -av pypsa-earth/data/heat_load_profile_BDEW.csv \
+  <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth/data/
+
+rsync -av pypsa-earth/data/unsd_transactions.csv \
+  <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth/data/
 ```
 
 ### Monitoring Jobs
-- Check status: `squeue -u <user>`
+- Check status across ARC clusters: `squeue --clusters=all -u <user>`
+- Cluster-specific fallback: `squeue -u <user>`
 - Watch logs: `tail -f logs/snakemake-*-build-profiles.log` and `tail -f logs/snakemake-*-build-networks.log`
 - Job details: `sacct -j <jobid> --format=JobID,JobName,State,Elapsed,MaxRSS`
 
-### Week Run Readiness (reuse annual profiles)
+### Sector Run Readiness (reuse annual profiles)
 From `pypsa-earth/` on ARC:
 
 1. Submit Step 1 build-profiles job (annual profiles):
@@ -131,30 +177,32 @@ From `pypsa-earth/` on ARC:
   ```
 2. Verify required profile files exist for the solve config:
   ```bash
-  ../arc/arc_check_run_inputs.sh configs/scenarios/config.europe-week-140.yaml
+  ../arc/arc_check_run_inputs.sh configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml
   ```
-3. Recommended: after Step 1 completes, submit one or more Step 2 build+solve jobs (for different configurations/targets):
+3. Recommended: after Step 1 completes, submit Step 2 sector preprocessing:
   ```bash
-  sbatch ../arc/jobs/02_build_networks_and_solve.sh \
-    europe-week-140 \
-    results/europe-year-140/networks/elec_s_140_ec_lcopt_Co2L-3h-week01.nc \
-    configs/scenarios/config.europe-week-140.yaml
+  sbatch ../arc/jobs/02_build_sector_data.sh \
+    europe-year-140-co2-zero-h2-sector-prep \
+    configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml
   ```
-4. Optional convenience: submit Step 2 with dependency on Step 1:
+4. Optional convenience: submit Step 2 with dependency on Step 1, then submit Step 3 after Step 2:
   ```bash
   BUILD_JOB=$(sbatch --parsable ../arc/jobs/01_build_profiles.sh \
     europe-year-140-profiles \
     configs/scenarios/config.europe-year-140-profiles.yaml)
 
-  sbatch --dependency=afterok:${BUILD_JOB} ../arc/jobs/02_build_networks_and_solve.sh \
-    europe-week-140 \
-    results/europe-year-140/networks/elec_s_140_ec_lcopt_Co2L-3h-week01.nc \
-    configs/scenarios/config.europe-week-140.yaml
+  SECTOR_PREP_JOB=$(sbatch --parsable --dependency=afterok:${BUILD_JOB} ../arc/jobs/02_build_sector_data.sh \
+    europe-year-140-co2-zero-h2-sector-prep \
+    configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml)
+
+  sbatch --dependency=afterok:${SECTOR_PREP_JOB} ../arc/jobs/03_build_networks_and_solve_sector.sh \
+    europe-year-140-co2-zero-h2-sector \
+    configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml
   ```
 
 ### Annual variants
 
-Run Step 2 with the desired config to build a new prepared network per variant.
+Run Step 2 + Step 3 with the desired config to build and solve the variant.
 
 ### Build annual profiles only
 

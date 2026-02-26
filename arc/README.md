@@ -22,11 +22,12 @@ cd /data/<group>/<user>
 bash arc_initial_setup.sh
 ```
 
-Submission now uses two workflow scripts:
+Submission now uses a three-step sector workflow:
 
 ```bash
 sbatch ../arc/jobs/01_build_profiles.sh <run-label> <config-file>
-sbatch ../arc/jobs/02_build_networks_and_solve.sh <run-label> <result-network-target> <config-file>
+sbatch ../arc/jobs/02_build_sector_data.sh <run-label> <config-file>
+sbatch ../arc/jobs/03_build_networks_and_solve_sector.sh <run-label> <config-file>
 ```
 
 ### `arc_check_run_inputs.sh`
@@ -82,17 +83,18 @@ cd pypsa-earth
 sbatch ../arc/jobs/01_build_profiles.sh <run-label> <config-file> [additional-configs...]
 ```
 
-### `jobs/02_build_networks_and_solve.sh`
-Step 2 submission script.
+### `jobs/02_build_sector_data.sh`
+Sector step 2 submission script (precompute sector data + pre-networks).
 
 **What it does:**
-- Builds networks and solves while reusing prebuilt renewable profiles
-- Fails fast if required profiles are missing
+- Builds sector-coupled preprocessing outputs up to `override_res_all_nets`
+- Uses the same CPU/thread settings as steps 01/02/03
+- Performs the same sector input preflight checks as step 03
 
 **Usage:**
 ```bash
 cd pypsa-earth
-sbatch ../arc/jobs/02_build_networks_and_solve.sh <run-label> <result-network-target> <config-file> [additional-configs...]
+sbatch ../arc/jobs/02_build_sector_data.sh <run-label> <config-file> [additional-configs...]
 ```
 
 **Environment variables you can set (advanced):**
@@ -103,6 +105,31 @@ sbatch ../arc/jobs/02_build_networks_and_solve.sh <run-label> <result-network-ta
 - `GRB_LICENSE_FILE`: Gurobi license file path
 - `ARC_WORKDIR`: Working directory (default: submission directory)
 - `ARC_SNAKE_LATENCY_WAIT`: File system latency wait (default: 60s)
+
+### `jobs/03_build_networks_and_solve_sector.sh`
+Sector-coupled solve submission script.
+
+**What it does:**
+- Runs `solve_sector_networks` for a sector-coupled scenario config
+- Supports hydrogen coupling and export wildcard handling from config
+
+**Usage:**
+```bash
+cd pypsa-earth
+sbatch ../arc/jobs/03_build_networks_and_solve_sector.sh <run-label> <config-file> [additional-configs...]
+```
+
+Example:
+```bash
+cd pypsa-earth
+sbatch ../arc/jobs/02_build_sector_data.sh \
+  europe-year-140-co2-zero-h2-sector-prep \
+  configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml
+
+sbatch ../arc/jobs/03_build_networks_and_solve_sector.sh \
+  europe-year-140-co2-zero-h2-sector \
+  configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml
+```
 
 ## Directory Structure on ARC
 
@@ -170,7 +197,7 @@ Then run ARC commands directly in that shell (no nested ssh needed):
 ../arc/arc_check_run_inputs.sh configs/scenarios/config.europe-week-140.yaml
 ```
 
-Submit directly with `01_build_profiles.sh` for Step 1 and `02_build_networks_and_solve.sh` for Step 2.
+Submit directly with `01_build_profiles.sh` for Step 1, `02_build_sector_data.sh` for Step 2, and `03_build_networks_and_solve_sector.sh` for Step 3.
 
 ### 1. Initial Setup (Once)
 ```bash
@@ -199,9 +226,27 @@ rsync -av pypsa-earth/data/custom_*.csv \
 rsync -av pypsa-earth/data/hydro_capacities.csv \
     pypsa-earth/data/eia_hydro_annual_generation.csv \
     <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth/data/
+
+# Sector-coupled full pre-sync (recommended for `03_build_networks_and_solve_sector.sh`)
+# Rationale: ARC clone does not include local `data/` and `cutouts/` content,
+# and electricity-only runs may not reveal these missing sector inputs.
+rsync -av pypsa-earth/data/demand/ \
+  <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth/data/demand/
+
+rsync -av pypsa-earth/data/emobility/ \
+  <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth/data/emobility/
+
+rsync -av pypsa-earth/data/heat_load_profile_BDEW.csv \
+  <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth/data/
+
+rsync -av pypsa-earth/data/unsd_transactions.csv \
+  <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth/data/
+
+rsync -av pypsa-earth/cutouts/cutout-2013-era5.nc \
+  <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth/cutouts/
 ```
 
-### 2. Recommended two-step workflow
+### 2. Recommended three-step sector workflow
 
 Run all commands from:
 
@@ -226,29 +271,23 @@ Verify expected profile outputs after Step 1:
 ls -lh resources/europe-year-140/renewable_profiles/profile_*.nc
 ```
 
-#### Step 2: Build networks and solve (reuses profiles from Step 1)
-
-Submit build-networks job with explicit result target:
+#### Step 2: Build sector preprocessing data (reuses profiles from Step 1)
 
 ```bash
-sbatch ../arc/jobs/02_build_networks_and_solve.sh \
-  europe-week-140 \
-  results/europe-year-140/networks/elec_s_140_ec_lcopt_Co2L-3h-week01.nc \
-  configs/scenarios/config.europe-week-140.yaml
+sbatch ../arc/jobs/02_build_sector_data.sh \
+  europe-year-140-co2-zero-h2-sector-prep \
+  configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml
 ```
 
-Optional: submit Step 2 with an explicit dependency on Step 1 in one sequence:
+#### Step 3: Build + solve sector network
 
 ```bash
-BUILD_JOB=$(sbatch --parsable ../arc/jobs/01_build_profiles.sh \
-  europe-year-140-profiles \
-  configs/scenarios/config.europe-year-140-profiles.yaml)
-
-sbatch --dependency=afterok:${BUILD_JOB} ../arc/jobs/02_build_networks_and_solve.sh \
-  europe-week-140 \
-  results/europe-year-140/networks/elec_s_140_ec_lcopt_Co2L-3h-week01.nc \
-  configs/scenarios/config.europe-week-140.yaml
+sbatch ../arc/jobs/03_build_networks_and_solve_sector.sh \
+  europe-year-140-co2-zero-h2-sector \
+  configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml
 ```
+
+Conditional dependency-chained submission examples are documented only in `DEVELOPMENT_NOTES.md`.
 
 ### 3. Monitor
 ```bash
