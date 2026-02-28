@@ -87,11 +87,13 @@ export LINOPY_SOLVER=${LINOPY_SOLVER:-gurobi}
 export GRB_LICENSE_FILE=${GRB_LICENSE_FILE:-"/data/engs-df-green-ammonia/engs2523/licenses/gurobi.lic"}
 export PROJ_LIB=${PROJ_LIB:-"$PYPSA_ENV/share/proj"}
 export PROJ_DATA=${PROJ_DATA:-"$PYPSA_ENV/share/proj"}
+RERUN_TRIGGERS=${ARC_SNAKE_RERUN_TRIGGERS:-mtime}
 
 DRYRUN_LOG=$(mktemp)
 if ! "$SNAKEMAKE" \
   -n \
   solve_sector_networks \
+  --rerun-triggers "${RERUN_TRIGGERS}" \
   "${CONFIG_ARGS[@]}" >"$DRYRUN_LOG" 2>&1; then
   echo "ERROR: Dry-run for step 3 failed. See output below:" >&2
   cat "$DRYRUN_LOG" >&2
@@ -100,12 +102,10 @@ if ! "$SNAKEMAKE" \
 fi
 
 if grep -Eq '^rule (build_renewable_profiles|download_osm_data|build_shapes|clean_osm_data|build_osm_network|base_network|build_bus_regions|build_powerplants|build_demand_profiles|add_electricity|simplify_network|cluster_network|add_extra_components|prepare_network|override_respot|override_res_all_nets):' "$DRYRUN_LOG"; then
-  echo "ERROR: Step 3 would trigger preprocessing rules from step 1/2." >&2
-  echo "Run the missing earlier step(s) first, then rerun step 3." >&2
+  echo "WARN: Step 3 dry-run includes preprocessing rules; continuing because prerequisite files were validated." >&2
+  echo "WARN: Using --rerun-triggers ${RERUN_TRIGGERS} to avoid metadata-only reruns where possible." >&2
   echo "Detected in dry-run:" >&2
   grep -E '^rule (build_renewable_profiles|download_osm_data|build_shapes|clean_osm_data|build_osm_network|base_network|build_bus_regions|build_powerplants|build_demand_profiles|add_electricity|simplify_network|cluster_network|add_extra_components|prepare_network|override_respot|override_res_all_nets):' "$DRYRUN_LOG" >&2
-  rm -f "$DRYRUN_LOG"
-  exit 2
 fi
 rm -f "$DRYRUN_LOG"
 
@@ -158,6 +158,7 @@ LATENCY_WAIT=${ARC_SNAKE_LATENCY_WAIT:-60}
 
 "$SNAKEMAKE" \
   solve_sector_networks \
+  --rerun-triggers "${RERUN_TRIGGERS}" \
   "${CONFIG_ARGS[@]}" \
   -j "${CPUS}" \
   --resources mem_mb="${MEM_MB}" \

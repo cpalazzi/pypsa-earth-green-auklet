@@ -569,6 +569,14 @@ def load_bus_region(onshore_path, pipelines):
         # )
         bus_regions_onshore = bus_regions_onshore.to_crs(epsg=3857)
 
+    bus_regions_onshore = bus_regions_onshore.copy()
+    bus_regions_onshore["geometry"] = bus_regions_onshore.geometry.apply(
+        lambda geom: make_valid(geom) if geom is not None else geom
+    )
+    bus_regions_onshore = bus_regions_onshore[bus_regions_onshore.geometry.notnull()]
+    bus_regions_onshore["geometry"] = bus_regions_onshore.geometry.buffer(0)
+    bus_regions_onshore = bus_regions_onshore[~bus_regions_onshore.geometry.is_empty]
+
     country_borders = unary_union(bus_regions_onshore.geometry)
 
     # Create a new GeoDataFrame containing the merged polygon
