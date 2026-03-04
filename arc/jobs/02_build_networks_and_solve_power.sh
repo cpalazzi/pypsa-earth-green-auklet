@@ -111,12 +111,20 @@ print(' ')
 " "${CONFIG_FILES[@]}" 2>/dev/null) || true
 
 if [[ -n "$RUN_NAME" ]]; then
-  # Remove _ec.nc intermediates
+  # Remove _ec.nc intermediates (add_extra_components output)
   EC_GLOB="networks/${RUN_NAME}/elec_s*_ec.nc"
   if ls $EC_GLOB 1>/dev/null 2>&1; then
     echo "Removing stale _ec.nc intermediates to force rebuild with current config:"
     ls -lh $EC_GLOB
     rm -f $EC_GLOB
+  fi
+
+  # Remove _ec_*.nc intermediates (prepare_network outputs) so they are also rebuilt
+  EC_PREP_GLOB="networks/${RUN_NAME}/elec_s*_ec_*.nc"
+  if ls $EC_PREP_GLOB 1>/dev/null 2>&1; then
+    echo "Removing stale prepare_network intermediates to force rebuild:"
+    ls -lh $EC_PREP_GLOB
+    rm -f $EC_PREP_GLOB
   fi
 
   # Remove stale solved result networks so Snakemake doesn't skip the job
