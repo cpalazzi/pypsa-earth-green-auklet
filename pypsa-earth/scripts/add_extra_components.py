@@ -406,7 +406,7 @@ def attach_ammonia_pipelines(n, costs, config, transmission_efficiency):
     # balance constraints and produce spurious flows.
     candidates = candidates[
         candidates.bus0.isin(ac_bus_set) & candidates.bus1.isin(ac_bus_set)
-    ]
+    ].reset_index(drop=True)
 
     nh3_links = candidates[
         ~pd.DataFrame(np.sort(candidates[["bus0", "bus1"]])).duplicated()
@@ -460,7 +460,7 @@ def attach_hydrogen_pipelines(n, costs, config, transmission_efficiency):
     # balance constraints and produce spurious flows.
     candidates = candidates[
         candidates.bus0.isin(ac_bus_set) & candidates.bus1.isin(ac_bus_set)
-    ]
+    ].reset_index(drop=True)
 
     # remove bus pair duplicates regardless of order of bus0 and bus1
     h2_links = candidates[
