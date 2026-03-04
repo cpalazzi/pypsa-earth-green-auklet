@@ -1,18 +1,18 @@
 #!/bin/bash
-#SBATCH --job-name=pypsa-earth-build-sector-data
+#SBATCH --job-name=pypsa-earth-solve-power
 #SBATCH --partition=short
 #SBATCH --clusters=all
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=48
-#SBATCH --mem=256G
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=128G
 #SBATCH --time=08:00:00
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --mail-user=carlo.palazzi@eng.ox.ac.uk
 
 if [[ $# -lt 2 ]]; then
-  echo "Usage: sbatch ../arc/jobs/02_build_sector_data.sh <run-label> <configfile> [configfile ...]" >&2
-  echo "Example: sbatch ../arc/jobs/02_build_sector_data.sh europe-year-140-co2-zero-h2-sector configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml" >&2
+  echo "Usage: sbatch ../arc/jobs/02_build_networks_and_solve_power.sh <run-label> <configfile> [configfile ...]" >&2
+  echo "Example: sbatch ../arc/jobs/02_build_networks_and_solve_power.sh europe-year-140-co2-zero-h2-power configs/scenarios/config.europe-year-140-co2-zero-h2-power.yaml" >&2
   exit 2
 fi
 
@@ -43,14 +43,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_WORKDIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 WORKDIR=${ARC_WORKDIR:-${SLURM_SUBMIT_DIR:-$DEFAULT_WORKDIR}}
 
-if [[ ! -f "$WORKDIR/Snakefile" && -f "$DEFAULT_WORKDIR/Snakefile" ]]; then
-  echo "WARN: No Snakefile in WORKDIR '$WORKDIR'; falling back to '$DEFAULT_WORKDIR'" >&2
-  WORKDIR="$DEFAULT_WORKDIR"
+if [[ ! -f "$WORKDIR/Snakefile" ]]; then
+  # Try pypsa-earth subdirectory (common when submitting from auklet root)
+  if [[ -f "$WORKDIR/pypsa-earth/Snakefile" ]]; then
+    echo "WARN: No Snakefile in WORKDIR '$WORKDIR'; falling back to '$WORKDIR/pypsa-earth'" >&2
+    WORKDIR="$WORKDIR/pypsa-earth"
+  elif [[ -f "$DEFAULT_WORKDIR/Snakefile" ]]; then
+    echo "WARN: No Snakefile in WORKDIR '$WORKDIR'; falling back to '$DEFAULT_WORKDIR'" >&2
+    WORKDIR="$DEFAULT_WORKDIR"
+  fi
 fi
 
 CHECK_SCRIPT_CANDIDATES=(
   "$WORKDIR/../arc/arc_check_run_inputs.sh"
+  "$WORKDIR/arc/arc_check_run_inputs.sh"
   "$SLURM_SUBMIT_DIR/../arc/arc_check_run_inputs.sh"
+  "$SLURM_SUBMIT_DIR/arc/arc_check_run_inputs.sh"
   "$SCRIPT_DIR/../arc_check_run_inputs.sh"
 )
 
@@ -71,8 +79,59 @@ if [[ -z "$CHECK_SCRIPT" ]]; then
   exit 2
 fi
 
-# Fail fast if annual profiles are missing for this sector config.
+# Change to WORKDIR early so CHECK_SCRIPT and config paths resolve correctly
+cd "$WORKDIR"
+
+# Fail fast if annual profiles are missing for this config.
 "$CHECK_SCRIPT" "${CONFIG_FILES[0]}"
+
+# Force rebuild of add_extra_components intermediate so each scenario gets the
+# correct extendable_carriers (H2 vs no-H2).  Also remove stale solved results
+# so Snakemake doesn't skip the build.  Profiles and upstream intermediates are
+# unaffected and fully reused.
+read -r RUN_NAME OPTS_CSV < <(python3 -c "
+import yaml, sys
+for cfg in sys.argv[1:]:
+    with open(cfg) as f:
+        d = yaml.safe_load(f)
+    rn = (d.get('run') or {}).get('name', '')
+    sc = d.get('scenario') or {}
+    opts = sc.get('opts', [])
+    ll = sc.get('ll', ['copt'])
+    clusters = sc.get('clusters', [140])
+    # Build opt tokens that appear in result filenames
+    tokens = []
+    for o in opts:
+        for l in ll:
+            for c in clusters:
+                tokens.append(f'l{l}_{o}')
+    print(rn, ','.join(tokens))
+    sys.exit(0)
+print(' ')
+" "${CONFIG_FILES[@]}" 2>/dev/null) || true
+
+if [[ -n "$RUN_NAME" ]]; then
+  # Remove _ec.nc intermediates
+  EC_GLOB="networks/${RUN_NAME}/elec_s*_ec.nc"
+  if ls $EC_GLOB 1>/dev/null 2>&1; then
+    echo "Removing stale _ec.nc intermediates to force rebuild with current config:"
+    ls -lh $EC_GLOB
+    rm -f $EC_GLOB
+  fi
+
+  # Remove stale solved result networks so Snakemake doesn't skip the job
+  if [[ -n "$OPTS_CSV" ]]; then
+    IFS=',' read -ra OPT_TOKENS <<< "$OPTS_CSV"
+    for token in "${OPT_TOKENS[@]}"; do
+      RESULT_GLOB="results/${RUN_NAME}/networks/elec_s*_ec_${token}.nc"
+      if ls $RESULT_GLOB 1>/dev/null 2>&1; then
+        echo "Removing stale result to force re-solve:"
+        ls -lh $RESULT_GLOB
+        rm -f $RESULT_GLOB
+      fi
+    done
+  fi
+fi
 
 ANACONDA_MODULE=${ARC_ANACONDA_MODULE:-"Anaconda3/2024.06-1"}
 module load "$ANACONDA_MODULE"
@@ -92,58 +151,25 @@ RERUN_TRIGGERS=${ARC_SNAKE_RERUN_TRIGGERS:-mtime}
 DRYRUN_LOG=$(mktemp)
 if ! "$SNAKEMAKE" \
   -n \
-  override_res_all_nets \
+  solve_all_networks \
   --rerun-triggers "${RERUN_TRIGGERS}" \
   "${CONFIG_ARGS[@]}" >"$DRYRUN_LOG" 2>&1; then
-  echo "ERROR: Dry-run for step 2 failed. See output below:" >&2
+  echo "ERROR: Dry-run for power solve failed. See output below:" >&2
   cat "$DRYRUN_LOG" >&2
   rm -f "$DRYRUN_LOG"
   exit 2
 fi
 
 if grep -Eq '^rule build_renewable_profiles:' "$DRYRUN_LOG"; then
-  echo "WARN: Step 2 dry-run includes build_renewable_profiles; continuing because prerequisite files were validated." >&2
+  echo "WARN: Dry-run includes build_renewable_profiles; continuing because prerequisite files were validated." >&2
   echo "WARN: Using --rerun-triggers ${RERUN_TRIGGERS} to avoid metadata-only reruns where possible." >&2
 fi
 rm -f "$DRYRUN_LOG"
 
-cd "$WORKDIR"
 mkdir -p logs
 export PYTHONPATH="$WORKDIR${PYTHONPATH:+:$PYTHONPATH}"
 
-REQUIRED_FILES=(
-  "cutouts/cutout-2013-era5.nc"
-  "data/demand/unsd/paths/Energy_Statistics_Database.xlsx"
-  "data/demand/fuel_shares.csv"
-  "data/demand/growth_factors_cagr.csv"
-  "data/demand/district_heating.csv"
-  "data/demand/efficiency_gains_cagr.csv"
-  "data/emobility/KFZ__count"
-  "data/emobility/Pkw__count"
-  "data/heat_load_profile_BDEW.csv"
-  "data/unsd_transactions.csv"
-  "data/hydrogen_salt_cavern_potentials.csv"
-  "data/temp_hard_coded/biomass_transport_costs.csv"
-)
-
-MISSING=()
-for f in "${REQUIRED_FILES[@]}"; do
-  if [[ ! -f "$f" ]]; then
-    MISSING+=("$f")
-  fi
-done
-
-if [[ ${#MISSING[@]} -gt 0 ]]; then
-  echo "ERROR: Missing required sector-demand input files:" >&2
-  for f in "${MISSING[@]}"; do
-    echo "  - $f" >&2
-  done
-  echo "Sync these from local before submitting this job." >&2
-  echo "Recommended one-time pre-sync commands are documented in arc/README.md (section: Sync local custom data)." >&2
-  exit 2
-fi
-
-LOGFILE="logs/snakemake-${SCENARIO}-$(date +%Y%m%d-%H%M%S)-build-sector-data.log"
+LOGFILE="logs/snakemake-${SCENARIO}-$(date +%Y%m%d-%H%M%S)-solve-power.log"
 echo "Snakemake log: $LOGFILE"
 
 MEM_MB=${SLURM_MEM_PER_NODE:-256000}
@@ -155,11 +181,11 @@ export GRB_THREADS=${GRB_THREADS:-$CPUS}
 LATENCY_WAIT=${ARC_SNAKE_LATENCY_WAIT:-60}
 
 "$SNAKEMAKE" \
-  override_res_all_nets \
+  solve_all_networks \
   --rerun-triggers "${RERUN_TRIGGERS}" \
   "${CONFIG_ARGS[@]}" \
   -j "${CPUS}" \
   --resources mem_mb="${MEM_MB}" \
   --latency-wait "${LATENCY_WAIT}" \
   --keep-going --rerun-incomplete --printshellcmds \
-  --stats "logs/snakemake-${SCENARIO}-build-sector-data.stats.json" 2>&1 | tee -a "$LOGFILE"
+  --stats "logs/snakemake-${SCENARIO}-solve-power.stats.json" 2>&1 | tee -a "$LOGFILE"

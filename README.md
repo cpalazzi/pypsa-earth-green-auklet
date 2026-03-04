@@ -48,8 +48,7 @@ PyPSA-Earth is an open-source energy system model that optimizes electricity gen
    ```bash
    cd pypsa-earth-green-auklet/pypsa-earth
    sbatch ../arc/jobs/01_build_profiles.sh europe-year-140-profiles configs/scenarios/config.europe-year-140-profiles.yaml
-   sbatch ../arc/jobs/02_build_sector_data.sh europe-year-140-co2-zero-h2-sector-prep configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml
-   sbatch ../arc/jobs/03_build_networks_and_solve_sector.sh europe-year-140-co2-zero-h2-sector configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml
+   sbatch ../arc/jobs/02_build_networks_and_solve_power.sh europe-year-140-co2-zero-h2-power configs/scenarios/config.europe-year-140-co2-zero-h2-power.yaml
    ```
 
 3. **Download results:**
@@ -71,8 +70,7 @@ pypsa-earth-green-auklet/
 │   ├── arc_initial_setup.sh             # Interactive setup wizard
 │   ├── build-pypsa-earth-env            # Environment builder
 │   ├── jobs/01_build_profiles.sh        # Step 1: build renewable profiles
-│   ├── jobs/02_build_sector_data.sh     # Step 2: build sector pre-networks
-│   ├── jobs/03_build_networks_and_solve_sector.sh # Step 3: sector build + solve
+│   ├── jobs/02_build_networks_and_solve_power.sh  # Step 2: power build + solve
 │   └── README.md                         # ARC documentation
 ├── notebooks/                            # Analysis notebooks
 │   ├── 000_arc_run_steps.ipynb          # ARC workflow example
@@ -249,36 +247,24 @@ PY
 
 If any file is missing, the safe run script exits before Snakemake can build profiles.
 
-## Sector-Coupled ARC Inputs (Important)
+## H2-Power Scenario (Non-Sector Workflow)
 
-Sector-coupled runs use additional demand/transport/heat data that are often missing on ARC after a fresh clone.
-They existed locally in this project, but earlier workflows synced only specific files needed for electricity-only runs.
+Use `configs/scenarios/config.europe-year-140-co2-zero-h2-power.yaml` to run the non-sector workflow with:
+- H2 electrolysis + H2 fuel-cell links (via `Store: [H2]`)
+- H2 storage tanks
+- Extendable `CCGT H2` links (`Link: [CCGT H2]`)
 
-Required files:
-- `pypsa-earth/data/demand/unsd/paths/Energy_Statistics_Database.xlsx`
-- `pypsa-earth/data/demand/fuel_shares.csv`
-- `pypsa-earth/data/demand/growth_factors_cagr.csv`
-- `pypsa-earth/data/demand/district_heating.csv`
-- `pypsa-earth/data/demand/efficiency_gains_cagr.csv`
-- `pypsa-earth/cutouts/cutout-2013-era5.nc`
-
-Recommended full pre-sync before submitting `03_build_networks_and_solve_sector.sh`:
+Example ARC submission:
 
 ```bash
-rsync -av pypsa-earth/data/demand/ \
-   <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth/data/demand/
+cd pypsa-earth
+sbatch ../arc/jobs/01_build_profiles.sh \
+  europe-year-140-profiles \
+  configs/scenarios/config.europe-year-140-profiles.yaml
 
-rsync -av pypsa-earth/cutouts/cutout-2013-era5.nc \
-   <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth/cutouts/
-
-rsync -av pypsa-earth/data/emobility/ \
-   <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth/data/emobility/
-
-rsync -av pypsa-earth/data/heat_load_profile_BDEW.csv \
-   <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth/data/
-
-rsync -av pypsa-earth/data/unsd_transactions.csv \
-   <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth/data/
+sbatch ../arc/jobs/02_build_networks_and_solve_power.sh \
+  europe-year-140-co2-zero-h2-power \
+  configs/scenarios/config.europe-year-140-co2-zero-h2-power.yaml
 ```
 
 Important: do not run bare `snakemake` in this repository. The first rule in the Snakefile is `clean`, so always pass an explicit target.

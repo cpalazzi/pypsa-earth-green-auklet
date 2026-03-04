@@ -426,6 +426,10 @@ if __name__ == "__main__":
         oo = o.split("+")
         suptechs = map(lambda c: c.split("-", 2)[0], n.carriers.index)
         if oo[0].startswith(tuple(suptechs)):
+            # A bare carrier token (e.g. "H2") without a +modifier is not a
+            # scaling instruction — skip it so we don't IndexError on oo[1].
+            if len(oo) < 2:
+                continue
             carrier = oo[0]
             # handles only p_nom_max as stores and lines have no potentials
             attr_lookup = {

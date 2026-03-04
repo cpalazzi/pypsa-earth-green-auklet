@@ -137,18 +137,22 @@ def attach_stores(n, costs, config):
             marginal_cost=costs.at["electrolysis", "marginal_cost"],
         )
 
-        n.madd(
-            "Link",
-            h2_buses_i + " Fuel Cell",
-            bus0=h2_buses_i,
-            bus1=buses_i,
-            carrier="H2 fuel cell",
-            p_nom_extendable=True,
-            efficiency=costs.at["fuel cell", "efficiency"],
-            capital_cost=costs.at["fuel cell", "capital_cost"]
-            * costs.at["fuel cell", "efficiency"],
-            marginal_cost=costs.at["fuel cell", "marginal_cost"],
-        )
+        # Fuel cell removed — H2-to-power is handled by CCGT H2 links
+        # (added via attach_hydrogen_ccgt when "CCGT H2" is in extendable_carriers.Link).
+        # To re-enable fuel cells, uncomment the block below.
+        #
+        # n.madd(
+        #     "Link",
+        #     h2_buses_i + " Fuel Cell",
+        #     bus0=h2_buses_i,
+        #     bus1=buses_i,
+        #     carrier="H2 fuel cell",
+        #     p_nom_extendable=True,
+        #     efficiency=costs.at["fuel cell", "efficiency"],
+        #     capital_cost=costs.at["fuel cell", "capital_cost"]
+        #     * costs.at["fuel cell", "efficiency"],
+        #     marginal_cost=costs.at["fuel cell", "marginal_cost"],
+        # )
 
     if "battery" in carriers:
         b_buses_i = n.madd(
@@ -230,6 +234,206 @@ def attach_stores(n, costs, config):
         )
 
 
+def attach_ammonia_stores(n, costs, config):
+    """
+    Add NH3 buses, stores and ammonia-synthesis links at every AC bus that
+    already has a hydrogen bus.
+
+    NH3 synthesis link:
+      bus0 = H2 bus  (hydrogen consumed)
+      bus1 = NH3 bus (ammonia produced)
+      bus2 = AC bus  (electricity consumed for Haber-Bosch)
+
+    From DEA 2030 archived config the stoichiometric recipe is:
+      1.13472 MWh_H2 + 0.16 MWh_el  →  1.0 MWh_NH3
+    which translates to PyPSA link coefficients on a per-unit-H2 basis:
+      efficiency  = 1 / 1.13472 ≈ 0.881   (NH3 out per H2 in)
+      efficiency2 = -0.16 / 1.13472 ≈ -0.141  (AC drawn per H2 in)
+
+    Operational constraints reflect Haber-Bosch process limitations:
+      p_min_pu       = 0.3   (minimum stable load ~30% of nameplate)
+      ramp_limit_up  = 0.1   (10% of p_nom per snapshot, ~30%/h at 3-h res)
+      ramp_limit_down= 0.1   (symmetric)
+    """
+    elec_opts = config["electricity"]
+    ext_carriers = elec_opts["extendable_carriers"]
+    as_stores = ext_carriers.get("Store", [])
+
+    if "NH3" not in as_stores:
+        return
+
+    assert "H2" in as_stores, (
+        "Attaching ammonia stores requires hydrogen storage to be modelled "
+        "as Store-Link-Bus combination. Add 'H2' to "
+        "`electricity.extendable_carriers.Store`."
+    )
+
+    _add_missing_carriers_from_costs(n, costs, ["NH3"])
+
+    buses_i = n.buses.index[n.buses.carrier == "AC"]
+    h2_buses_i = buses_i + " H2"
+    bus_sub_dict = {
+        k: n.buses.loc[buses_i, k].values for k in ["x", "y", "country"]
+    }
+
+    # Verify H2 buses exist
+    missing_h2 = h2_buses_i.difference(n.buses.index)
+    if not missing_h2.empty:
+        logger.warning(
+            "Skipping NH3 attachment because hydrogen buses are missing. "
+            "Ensure H2 is in extendable_carriers.Store and runs before NH3."
+        )
+        return
+
+    # --- NH3 buses ---
+    nh3_buses_i = n.madd(
+        "Bus", buses_i + " NH3", carrier="NH3", **bus_sub_dict
+    )
+
+    # --- NH3 stores ---
+    max_hours_nh3 = elec_opts.get("max_hours", {}).get("NH3", 168)
+    n.madd(
+        "Store",
+        nh3_buses_i,
+        bus=nh3_buses_i,
+        carrier="NH3",
+        e_nom_extendable=True,
+        e_cyclic=True,
+        capital_cost=costs.at["ammonia storage", "capital_cost"],
+    )
+
+    # --- NH3 synthesis links (H2 → NH3, consuming electricity) ---
+    # DEA recipe: 1.13472 H2 + 0.16 el → 1.0 NH3
+    nh3_synthesis_eff = costs.at["ammonia synthesis", "efficiency"]  # ≈ 0.881
+    elec_per_h2 = 0.16 / 1.13472  # ≈ 0.141
+
+    n.madd(
+        "Link",
+        nh3_buses_i + " NH3 synthesis",
+        bus0=h2_buses_i,
+        bus1=nh3_buses_i,
+        bus2=buses_i,  # electricity drawn
+        carrier="NH3 synthesis",
+        p_nom_extendable=True,
+        efficiency=nh3_synthesis_eff,
+        efficiency2=-elec_per_h2,  # negative = consumed
+        # Capital cost on bus0 (H2 input) basis
+        capital_cost=costs.at["ammonia synthesis", "capital_cost"]
+        * nh3_synthesis_eff,
+        marginal_cost=costs.at["ammonia synthesis", "marginal_cost"],
+        # Haber-Bosch operational constraints
+        p_min_pu=0.3,
+        ramp_limit_up=0.1,
+        ramp_limit_down=0.1,
+    )
+
+    logger.info(
+        f"Added {len(nh3_buses_i)} NH3 buses, stores and synthesis links "
+        f"(eff={nh3_synthesis_eff:.3f}, elec_draw={elec_per_h2:.3f}/MWh_H2, "
+        f"p_min_pu=0.3, ramp=0.1)"
+    )
+
+
+def attach_ammonia_ccgt(n, costs, config):
+    """Add CCGT NH3 links (NH3 bus → AC bus) at every node with an NH3 bus."""
+    elec_opts = config["electricity"]
+    ext_carriers = elec_opts["extendable_carriers"]
+    as_links = ext_carriers.get("Link", [])
+    as_stores = ext_carriers.get("Store", [])
+
+    if "CCGT NH3" not in as_links:
+        return
+
+    assert "NH3" in as_stores, (
+        "Attaching CCGT NH3 requires ammonia storage to be modelled "
+        "as Store-Link-Bus combination. Add 'NH3' to "
+        "`electricity.extendable_carriers.Store`."
+    )
+
+    _add_missing_carriers_from_costs(n, costs, ["CCGT NH3"])
+
+    buses_i = n.buses.index[n.buses.carrier == "AC"]
+    nh3_buses_i = buses_i + " NH3"
+
+    missing_nh3 = nh3_buses_i.difference(n.buses.index)
+    if not missing_nh3.empty:
+        logger.warning(
+            "Skipping CCGT NH3 — NH3 buses missing. "
+            "Ensure NH3 is in extendable_carriers.Store."
+        )
+        return
+
+    n.madd(
+        "Link",
+        nh3_buses_i + " CCGT NH3",
+        bus0=nh3_buses_i,
+        bus1=buses_i,
+        carrier="CCGT NH3",
+        p_nom_extendable=True,
+        efficiency=costs.at["CCGT NH3", "efficiency"],
+        capital_cost=costs.at["CCGT NH3", "capital_cost"]
+        * costs.at["CCGT NH3", "efficiency"],
+        marginal_cost=costs.at["CCGT NH3", "marginal_cost"],
+    )
+
+    logger.info(f"Added {len(buses_i)} CCGT NH3 links")
+
+
+def attach_ammonia_pipelines(n, costs, config, transmission_efficiency):
+    """Add NH3 pipeline links between nodes, mirroring the H2 pipeline pattern."""
+    elec_opts = config["electricity"]
+    ext_carriers = elec_opts["extendable_carriers"]
+    as_stores = ext_carriers.get("Store", [])
+
+    if "NH3 pipeline" not in ext_carriers.get("Link", []):
+        return
+
+    assert "NH3" in as_stores, (
+        "Attaching NH3 pipelines requires ammonia storage to be modelled "
+        "as Store-Link-Bus combination. Add 'NH3' to "
+        "`electricity.extendable_carriers.Store`."
+    )
+
+    # Determine bus pairs from existing lines/DC links
+    attrs = ["bus0", "bus1", "length"]
+    ac_bus_set = set(n.buses.index[n.buses.carrier == "AC"])
+    candidates = pd.concat(
+        [n.lines[attrs], n.links.query('carrier=="DC"')[attrs]]
+    ).reset_index(drop=True)
+    # Filter to only include bus pairs where BOTH endpoints exist as AC buses.
+    # After simplify/cluster, n.lines may reference buses that were merged away;
+    # pipelines to non-existent buses create orphaned links that break bus
+    # balance constraints and produce spurious flows.
+    candidates = candidates[
+        candidates.bus0.isin(ac_bus_set) & candidates.bus1.isin(ac_bus_set)
+    ]
+
+    nh3_links = candidates[
+        ~pd.DataFrame(np.sort(candidates[["bus0", "bus1"]])).duplicated()
+    ]
+    nh3_links.index = nh3_links.apply(
+        lambda c: f"NH3 pipeline {c.bus0}-{c.bus1}", axis=1
+    )
+
+    n.madd(
+        "Link",
+        nh3_links.index,
+        bus0=nh3_links.bus0.values + " NH3",
+        bus1=nh3_links.bus1.values + " NH3",
+        p_min_pu=-1,
+        p_nom_extendable=True,
+        length=nh3_links.length.values,
+        capital_cost=costs.at["NH3 pipeline", "capital_cost"] * nh3_links.length,
+        carrier="NH3 pipeline",
+    )
+
+    # Split into bidirectional links with transmission losses
+    lossy_bidirectional_links(n, "NH3 pipeline")
+    set_length_based_efficiency(n, "NH3 pipeline", " NH3", transmission_efficiency)
+
+    logger.info(f"Added {len(nh3_links)} NH3 pipeline links (bidirectional)")
+
+
 def attach_hydrogen_pipelines(n, costs, config, transmission_efficiency):
     elec_opts = config["electricity"]
     ext_carriers = elec_opts["extendable_carriers"]
@@ -246,9 +450,17 @@ def attach_hydrogen_pipelines(n, costs, config, transmission_efficiency):
 
     # determine bus pairs
     attrs = ["bus0", "bus1", "length"]
+    ac_bus_set = set(n.buses.index[n.buses.carrier == "AC"])
     candidates = pd.concat(
         [n.lines[attrs], n.links.query('carrier=="DC"')[attrs]]
     ).reset_index(drop=True)
+    # Filter to only include bus pairs where BOTH endpoints exist as AC buses.
+    # After simplify/cluster, n.lines may reference buses that were merged away;
+    # pipelines to non-existent buses create orphaned links that break bus
+    # balance constraints and produce spurious flows.
+    candidates = candidates[
+        candidates.bus0.isin(ac_bus_set) & candidates.bus1.isin(ac_bus_set)
+    ]
 
     # remove bus pair duplicates regardless of order of bus0 and bus1
     h2_links = candidates[
@@ -276,6 +488,49 @@ def attach_hydrogen_pipelines(n, costs, config, transmission_efficiency):
     set_length_based_efficiency(n, "H2 pipeline", " H2", transmission_efficiency)
 
 
+def attach_hydrogen_ccgt(n, costs, config):
+    elec_opts = config["electricity"]
+    ext_carriers = elec_opts["extendable_carriers"]
+    as_links = ext_carriers.get("Link", [])
+    as_stores = ext_carriers.get("Store", [])
+
+    if not any(carrier in as_links for carrier in ["CCGT H2", "H2 CCGT"]):
+        return
+
+    assert "H2" in as_stores, (
+        "Attaching hydrogen CCGT requires hydrogen "
+        "storage to be modelled as Store-Link-Bus combination. See "
+        "`config.yaml` at `electricity: extendable_carriers: Store:`."
+    )
+
+    _add_missing_carriers_from_costs(n, costs, ["CCGT H2"])
+
+    buses_i = n.buses.index[n.buses.carrier == "AC"]
+    h2_buses_i = buses_i + " H2"
+
+    missing_h2_buses = h2_buses_i.difference(n.buses.index)
+    if not missing_h2_buses.empty:
+        logger.warning(
+            "Skipping CCGT H2 attachment because hydrogen buses are missing. "
+            "Ensure `H2` is included in `electricity.extendable_carriers.Store`."
+        )
+        return
+
+    n.madd(
+        "Link",
+        h2_buses_i + " CCGT H2",
+        bus0=h2_buses_i,
+        bus1=buses_i,
+        carrier="CCGT H2",
+        p_nom_extendable=True,
+        efficiency=costs.at["CCGT H2", "efficiency"],
+        # Link capacity is defined on bus0; convert from electrical-output CAPEX.
+        capital_cost=costs.at["CCGT H2", "capital_cost"]
+        * costs.at["CCGT H2", "efficiency"],
+        marginal_cost=costs.at["CCGT H2", "marginal_cost"],
+    )
+
+
 if __name__ == "__main__":
     if "snakemake" not in globals():
         from _helpers import mock_snakemake
@@ -298,7 +553,11 @@ if __name__ == "__main__":
 
     attach_storageunits(n, costs, config)
     attach_stores(n, costs, config)
+    attach_hydrogen_ccgt(n, costs, config)
     attach_hydrogen_pipelines(n, costs, config, transmission_efficiency)
+    attach_ammonia_stores(n, costs, config)
+    attach_ammonia_ccgt(n, costs, config)
+    attach_ammonia_pipelines(n, costs, config, transmission_efficiency)
 
     add_nice_carrier_names(n, config=snakemake.config)
 

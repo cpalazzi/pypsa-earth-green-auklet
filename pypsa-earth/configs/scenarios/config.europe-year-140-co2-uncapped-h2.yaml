@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: CC0-1.0
 
-# Europe 140-node full-year run with (near-)zero CO2 cap and sector coupling.
-# Enables hydrogen sector coupling and keeps hydrogen available as a storage option.
+# Europe 140-node full-year run with effectively uncapped CO2 and hydrogen optionality.
+# Adds H2 storage, electrolysis, and CCGT H2 links on top of the default config.
 
 version: 0.8.0
 tutorial: false
@@ -56,7 +56,7 @@ countries:
 
 enable:
   retrieve_databundle: false
-  retrieve_databundle_sector: true
+  retrieve_databundle_sector: false
   retrieve_cost_data: false
   download_osm_data: true
   download_global_buildings: false
@@ -69,7 +69,7 @@ custom_rules: []
 
 run:
   name: "europe-year-140"
-  sector_name: "europe-year-140-co2-zero-h2-sector"
+  sector_name: ""
   shared_cutouts: true
   allow_scenario_failure: false
 
@@ -77,7 +77,7 @@ scenario:
   simpl: [""]
   ll: ["copt"]
   clusters: [140]
-  opts: [Co2zero-3h]
+  opts: [Co2nocap-3h-H2]
   planning_horizons:
   - 2030
   sopts:
@@ -96,19 +96,12 @@ co2_budget:
   co2base_value: co2limit
 
 electricity:
-  co2limit: 1.0e1
+  co2limit: 1.0e12
   max_hours:
     H2: 4380
   extendable_carriers:
     Store: [battery, H2]
-
-sector:
-  hydrogen:
-    network: true
-
-export:
-  endogenous: false
-  h2export: [0]
+    Link: [CCGT H2, H2 pipeline]
 
 atlite:
   nprocesses: 4

@@ -32,6 +32,11 @@ CO2 variants (full-year, 140 nodes):
 - `config.europe-year-140-co2-zero.yaml` - Zero CO2 cap
 - `config.europe-year-140-co2-uncapped.yaml` - Effectively uncapped CO2
 
+H2 optionality variants (append `-h2`):
+- `config.europe-year-140-h2.yaml` - Limited CO2 + H2 (CCGT H2 + pipeline)
+- `config.europe-year-140-co2-zero-h2.yaml` - Zero CO2 + H2
+- `config.europe-year-140-co2-uncapped-h2.yaml` - Uncapped CO2 + H2
+
 ### Run Names
 Match configuration names without the "config." prefix:
 - `europe-day-140`
@@ -102,71 +107,75 @@ Then run checks/submissions in that shell, for example:
 
 ```bash
 ../arc/arc_check_run_inputs.sh configs/scenarios/config.europe-week-140.yaml
-sbatch ../arc/jobs/02_build_sector_data.sh \
-  europe-year-140-co2-zero-h2-sector-prep \
-  configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml
-
-sbatch ../arc/jobs/03_build_networks_and_solve_sector.sh \
-  europe-year-140-co2-zero-h2-sector \
-  configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml
+sbatch ../arc/jobs/02_build_networks_and_solve_power.sh \
+  europe-year-140-co2-zero-h2-power \
+  configs/scenarios/config.europe-year-140-co2-zero-h2-power.yaml
 ```
 
 ### Running Models
 ```bash
 cd pypsa-earth
 sbatch ../arc/jobs/01_build_profiles.sh europe-year-140-profiles configs/scenarios/config.europe-year-140-profiles.yaml
-sbatch ../arc/jobs/02_build_sector_data.sh europe-year-140-co2-zero-h2-sector-prep configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml
-sbatch ../arc/jobs/03_build_networks_and_solve_sector.sh europe-year-140-co2-zero-h2-sector configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml
+sbatch ../arc/jobs/02_build_networks_and_solve_power.sh europe-year-140-co2-zero-h2-power configs/scenarios/config.europe-year-140-co2-zero-h2-power.yaml
 ```
 
-Recommended sector sequence:
+Recommended power sequence:
 1. `01_build_profiles.sh` (renewable profiles)
-2. `02_build_sector_data.sh` (sector preprocessing/pre-networks)
-3. `03_build_networks_and_solve_sector.sh` (final build+solve)
-
-### Sector-coupled ARC prerequisites
-
-Sector-coupled runs (`03_build_networks_and_solve_sector.sh`) require additional inputs that are available locally but not guaranteed on ARC after clone.
-This happens because `data/` and `cutouts/` are synced ad hoc and earlier electricity-only runs may not touch sector-specific files.
-
-Required files:
-- `data/demand/unsd/paths/Energy_Statistics_Database.xlsx`
-- `data/demand/fuel_shares.csv`
-- `data/demand/growth_factors_cagr.csv`
-- `data/demand/district_heating.csv`
-- `data/demand/efficiency_gains_cagr.csv`
-- `cutouts/cutout-2013-era5.nc`
-- `data/emobility/KFZ__count`
-- `data/emobility/Pkw__count`
-- `data/heat_load_profile_BDEW.csv`
-- `data/unsd_transactions.csv`
-
-Recommended full pre-sync before submitting sector runs:
-
-```bash
-rsync -av pypsa-earth/data/demand/ \
-  <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth/data/demand/
-
-rsync -av pypsa-earth/cutouts/cutout-2013-era5.nc \
-  <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth/cutouts/
-
-rsync -av pypsa-earth/data/emobility/ \
-  <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth/data/emobility/
-
-rsync -av pypsa-earth/data/heat_load_profile_BDEW.csv \
-  <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth/data/
-
-rsync -av pypsa-earth/data/unsd_transactions.csv \
-  <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-green-auklet/pypsa-earth/data/
-```
+2. `02_build_networks_and_solve_power.sh` (network build + solve)
 
 ### Monitoring Jobs
 - Check status across ARC clusters: `squeue --clusters=all -u <user>`
 - Cluster-specific fallback: `squeue -u <user>`
-- Watch logs: `tail -f logs/snakemake-*-build-profiles.log` and `tail -f logs/snakemake-*-build-networks.log`
+- Watch logs: `tail -f logs/snakemake-*-build-profiles.log` and `tail -f logs/snakemake-*-solve-power.log`
 - Job details: `sacct -j <jobid> --format=JobID,JobName,State,Elapsed,MaxRSS`
 
-### Sector Run Readiness (reuse annual profiles)
+### Copilot / VS Code Terminal SSH Workflow
+Copilot can run ARC commands via single-shot SSH from the VS Code terminal.
+The terminal will prompt for a password — enter it when asked.
+
+**Check a specific Slurm job:**
+
+```bash
+ssh engs2523@arc-login.arc.ox.ac.uk "sacct -j <JOBID> --format=JobID,JobName%30,State%15,Elapsed,MaxRSS,ExitCode,Start,End"
+```
+
+**List all running/pending jobs:**
+
+```bash
+ssh engs2523@arc-login.arc.ox.ac.uk "squeue --clusters=all -u engs2523"
+```
+
+**Tail Snakemake solve log:**
+
+```bash
+ssh engs2523@arc-login.arc.ox.ac.uk "tail -50 /data/engs-df-green-ammonia/engs2523/pypsa-earth-green-auklet/pypsa-earth/logs/snakemake-*-solve-power.log"
+```
+
+**Tail Slurm stdout for a job:**
+
+```bash
+ssh engs2523@arc-login.arc.ox.ac.uk "tail -50 /data/engs-df-green-ammonia/engs2523/pypsa-earth-green-auklet/pypsa-earth/slurm-<JOBID>.out"
+```
+
+**Combined status check (job + queue + recent log):**
+
+```bash
+ssh engs2523@arc-login.arc.ox.ac.uk "sacct -j <JOBID> --format=JobID,JobName%30,State%15,Elapsed,MaxRSS,ExitCode; echo '---'; squeue --clusters=all -u engs2523; echo '---'; tail -30 /data/engs-df-green-ammonia/engs2523/pypsa-earth-green-auklet/pypsa-earth/logs/snakemake-*-solve-power.log 2>/dev/null | tail -20"
+```
+
+**Push local changes to ARC (rsync):**
+
+```bash
+rsync -avz --progress pypsa-earth/scripts/prepare_network.py engs2523@arc-login.arc.ox.ac.uk:/data/engs-df-green-ammonia/engs2523/pypsa-earth-green-auklet/pypsa-earth/scripts/
+```
+
+**Resubmit a failed job after fix:**
+
+```bash
+ssh engs2523@arc-login.arc.ox.ac.uk "cd /data/engs-df-green-ammonia/engs2523/pypsa-earth-green-auklet/pypsa-earth && sbatch ../arc/jobs/02_build_networks_and_solve_power.sh europe-year-140-co2-zero-h2-power configs/scenarios/config.europe-year-140-co2-zero-h2-power.yaml"
+```
+
+### H2-Power Run Readiness (reuse annual profiles)
 From `pypsa-earth/` on ARC:
 
 1. Submit Step 1 build-profiles job (annual profiles):
@@ -177,32 +186,28 @@ From `pypsa-earth/` on ARC:
   ```
 2. Verify required profile files exist for the solve config:
   ```bash
-  ../arc/arc_check_run_inputs.sh configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml
+  ../arc/arc_check_run_inputs.sh configs/scenarios/config.europe-year-140-co2-zero-h2-power.yaml
   ```
-3. Recommended: after Step 1 completes, submit Step 2 sector preprocessing:
+3. After Step 1 completes, submit Step 2 power solve:
   ```bash
-  sbatch ../arc/jobs/02_build_sector_data.sh \
-    europe-year-140-co2-zero-h2-sector-prep \
-    configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml
+  sbatch ../arc/jobs/02_build_networks_and_solve_power.sh \
+    europe-year-140-co2-zero-h2-power \
+    configs/scenarios/config.europe-year-140-co2-zero-h2-power.yaml
   ```
-4. Optional convenience: submit Step 2 with dependency on Step 1, then submit Step 3 after Step 2:
+4. Optional convenience: submit Step 2 with dependency on Step 1:
   ```bash
   BUILD_JOB=$(sbatch --parsable ../arc/jobs/01_build_profiles.sh \
     europe-year-140-profiles \
     configs/scenarios/config.europe-year-140-profiles.yaml)
 
-  SECTOR_PREP_JOB=$(sbatch --parsable --dependency=afterok:${BUILD_JOB} ../arc/jobs/02_build_sector_data.sh \
-    europe-year-140-co2-zero-h2-sector-prep \
-    configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml)
-
-  sbatch --dependency=afterok:${SECTOR_PREP_JOB} ../arc/jobs/03_build_networks_and_solve_sector.sh \
-    europe-year-140-co2-zero-h2-sector \
-    configs/scenarios/config.europe-year-140-co2-zero-h2-sector.yaml
+  sbatch --dependency=afterok:${BUILD_JOB} ../arc/jobs/02_build_networks_and_solve_power.sh \
+    europe-year-140-co2-zero-h2-power \
+    configs/scenarios/config.europe-year-140-co2-zero-h2-power.yaml
   ```
 
 ### Annual variants
 
-Run Step 2 + Step 3 with the desired config to build and solve the variant.
+Run Step 2 with the desired config to build and solve the variant.
 
 ### Build annual profiles only
 
@@ -413,11 +418,183 @@ solving:
 - [x] Configure Gurobi solver
 - [x] Create ARC setup scripts
 - [x] Write testing plan
-- [ ] Run day test validation
-- [ ] Expand to week/month/year tests
-- [ ] Develop analysis notebooks
-- [ ] Create visualization scripts
+- [x] Run initial co2_zero and h2_power solves — identified load shedding dominance
+- [x] Reconfigure for clean H2 A/B comparison (batch 2)
+- [ ] Submit batch 2: 6 runs (3 CO2 levels × with/without H2)
+- [ ] Download and compare batch 2 results
+- [ ] Develop ammonia (NH3) optionality extension
+
+## Changes Log
+
+### 2 Mar 2026 — Batch 2 Config Overhaul
+**Motivation:** Initial runs showed both co2_zero and h2_power had H2 by default,
+making comparison invalid. Fuel cell dominated CCGT H2 due to lower cost + higher η.
+Load shedding dominated objectives, masking real cost differences.
+
+**Changes made:**
+1. **Nuclear now extendable** — added `nuclear` to `extendable_carriers.Generator` in
+   `config.default.yaml`. Existing brownfield nuclear plants can now expand capacity.
+   Nuclear has zero CO2 emissions, providing a dispatchable zero-carbon backstop that
+   should reduce load shedding significantly.
+
+2. **H2 removed from default Store** — `config.default.yaml` now has `Store: [battery]`.
+   H2 is only enabled in the `-h2` scenario configs. This gives a clean no-H2 baseline.
+
+3. **Fuel cell removed** — Commented out in `add_extra_components.py`. H2-to-power
+   conversion now exclusively via CCGT H2 links (when enabled). Fuel cell was cheaper
+   and more efficient, making CCGT H2 irrelevant when both were present.
+
+4. **Six scenario configs** created for systematic comparison:
+   - Without H2: `co2_limited`, `co2_zero`, `co2_uncapped`
+   - With H2: `co2_limited_h2`, `co2_zero_h2`, `co2_uncapped_h2`
+   All H2 configs add `Store: [battery, H2]`, `Link: [CCGT H2, H2 pipeline]`,
+   `max_hours.H2: 4380`.
+
+5. **CCGT H2 capital_cost verified** — `capital_cost = investment × efficiency` correctly
+   converts from per-kW-output to per-kW-input (bus0) for Link components. Same pattern
+   as fuel cell (both H2→AC links). Electrolysis has no conversion because investment
+   is already per-kW-input.
+
+6. **Solar/wind land caps confirmed** — `p_nom_max` is set from resource profile datasets
+   (geographical/land-availability potential). IRENA stats provide `p_nom_min` scaling.
+   No changes needed.
+
+## Findings: co2_zero vs h2_power LCOE Comparison (2 Mar 2026)
+
+### Key Finding: Load Shedding Dominates Both Objectives
+Both `co2_zero` and `h2_power` runs include H2 storage + electrolysis + fuel cell by default
+(`config.default.yaml` has `Store: [battery, H2]`). The `h2_power` config only ADDS
+CCGT H2 links and H2 pipelines on top.
+
+Despite h2_power having more H2 options, its LCOE is higher (125 vs 110 EUR/MWh).
+Root cause: **load shedding at 100,000 EUR/MWh** dominates the objective:
+- co2_zero: 2.565 TWh shed → 256,483 MEUR penalty
+- h2_power: 3.095 TWh shed → 309,539 MEUR penalty
+- Difference: +53,056 MEUR ≈ entire LCOE gap
+
+Excluding load shedding, both runs cost ~39-40 EUR/MWh — the optimizer behaves correctly.
+The 0.53 TWh shedding difference (0.015% of demand) is within solver tolerance / optimality gap.
+
+### Fuel Cell vs CCGT H2: Why Fuel Cell Dominates
+The optimizer correctly prefers fuel cells over CCGT H2 on every metric:
+
+| Parameter       | Fuel Cell    | CCGT H2      |
+|-----------------|-------------|-------------- |
+| Investment      | 339 EUR/kW  | 800 EUR/kW   |
+| Efficiency      | 0.58        | 0.50         |
+| FOM             | 3%/yr       | 2.5%/yr      |
+| Lifetime        | 20 yr       | 30 yr        |
+| VOM             | 0 EUR/MWh   | 4 EUR/MWh    |
+| Annualized CapEx (7.1%) | ~32 EUR/kW/yr | ~65 EUR/kW/yr |
+| Effective PyPSA capital_cost | investment × η | investment × η |
+
+Both convert H2→electricity with zero fuel cost (H2 from store). Fuel cell has ~2x lower
+capital cost AND higher efficiency. CCGT H2 only makes sense at very different cost assumptions.
+
+### Nuclear Is Not Extendable
+Nuclear is in `conventional_carriers` but NOT in `extendable_carriers.Generator`.
+The model uses existing brownfield nuclear but cannot build new nuclear.
+Under zero-CO2, the only new-build dispatchable options are H2-based (fuel cell, CCGT H2)
+since OCGT/CCGT emit CO2. This limits the model's ability to displace load shedding.
+
+Nuclear LCOE at costs.csv figures: ~77 EUR/MWh (6000 EUR/kW, 45yr, 85% CF, 7.1% WACC,
+3 EUR/MWhth fuel, 8 EUR/MWhel VOM). Still far cheaper than 100,000 EUR/MWh load shedding.
+
+### Nuclear Dispatch Findings (3 Mar 2026)
+Investigation of the co2_zero run revealed that existing nuclear capacity is correctly
+retained (France 66 GW, Europe total 128 GW via `p_nom_min`) but dispatch is low:
+~26% capacity factor, offline 43% of the year.
+
+**Why nuclear underperforms:** Nuclear has zero CO2 emissions in the model, so it is not
+penalised under a zero-CO2 cap. The low dispatch is economically rational — massive
+renewable overbuild (1,060 GW solar, 832 GW onwind) at near-zero marginal cost
+displaces nuclear whenever renewables are available. The optimizer freely cycles nuclear
+up and down because no `p_min_pu` or ramp constraints are imposed.
+
+**Ramp rates are immaterial at 3h resolution:** French nuclear plants can ramp at
+~5%/min in load-following mode (~1–3% p_nom/min). At 3-hour timesteps this translates
+to effectively unconstrained ramping (100% in one step), so adding `ramp_limit_up/down`
+would have no practical effect at our temporal resolution.
+
+**Minimum stable load (`p_min_pu`) could matter:** Real French nuclear operates with a
+minimum stable output of ~30% of nameplate (flexible mode). Setting `p_min_pu = 0.3` on
+nuclear generators would prevent full shutdown and force a baseload floor, more closely
+reflecting operational reality. However, we are deliberately **not** implementing this
+for now — leaving nuclear unconstrained gives the optimizer maximum flexibility and
+provides a parsimonious baseline. The current treatment is conservative in that it
+*underestimates* nuclear's system value (by allowing the optimizer to "waste" nuclear
+capacity that in practice would run at minimum load and displace some renewables).
+This can be revisited if nuclear dispatch patterns become a focus of analysis.
+
+### Implications for Next Runs
+1. Load shedding signals model infeasibility at some nodes/hours — need to investigate WHERE
+2. To test H2 optionality value: need a baseline WITHOUT H2 (override `Store: [battery]`,
+   remove H2 from default) then compare against H2-enabled run
+3. Adding nuclear to extendable_carriers would largely eliminate load shedding but is a
+   policy choice, not a bug fix
+4. Consider reducing solver optimality gap (MIPGap) to get tighter load-shedding bounds
+
+## Investigation Plan: H2 and NH3 Optionality Value
+
+### Phase 1: Clean H2 A/B Test
+To properly measure the cost savings from hydrogen optionality:
+
+**Run A (no-H2 baseline):** Override `extendable_carriers.Store: [battery]` — removes all
+H2 infrastructure. H2 buses, electrolysis, fuel cell, stores all disappear.
+
+**Run B (H2-enabled):** Current `Store: [battery, H2]` (default config). Includes H2
+storage, electrolysis, and fuel cell links.
+
+**Run C (H2-extended):** Add `Link: [CCGT H2, H2 pipeline]` on top of Run B.
+This is the current h2_power config.
+
+Compare: LCOE_A vs LCOE_B vs LCOE_C (excluding load shedding penalty for clean comparison).
+
+### Phase 2: Nuclear as Backstop
+Add `nuclear` to `extendable_carriers.Generator` in all three configs above.
+This provides a high-cost but zero-carbon dispatchable backstop that should eliminate
+most load shedding, giving a cleaner cost comparison between H2 scenarios.
+
+### Phase 3: Ammonia Optionality
+Once H2 architecture is validated, extend to ammonia:
+- NH3 synthesis link (H2 + N2 → NH3, Haber-Bosch)
+- NH3 storage (cheaper $/kWh than H2 tank)
+- NH3 cracker or direct NH3 turbine for power
+- Compare LCOE with and without NH3 pathway
+
+This requires new cost entries in costs.csv and new component wiring in add_extra_components.py.
+The prior overlay repo had some ammonia configs (see `archive/tech_config_ammonia_plant_2030_dea.yaml`)
+which can inform cost assumptions.
 
 ## Notes on Ammonia Integration
 We intentionally did **not** migrate ammonia scripts/configs from the prior overlay repo. 
 These should be rebuilt with full context later after validating the base electricity model.
+
+### NH3 Pipeline Orphaned Bus Bug (4 Mar 2026)
+
+**Symptom**: CCGT NH3 consumes 384× more NH3 than synthesis produces (4,159 TWh vs 10.8 TWh).
+NH3 pipeline capacity is 993 GW — physically impossible. PyPSA warns about undefined buses on load.
+
+**Root cause**: `attach_ammonia_pipelines()` (and `attach_hydrogen_pipelines()`) construct bus pairs
+from `n.lines[["bus0", "bus1"]]`. After `simplify_network` / `cluster_network`, **`n.lines` retains
+references to buses that were merged away** during simplification. The pipeline function appends
+" NH3" to these bus names, but `attach_ammonia_stores` only creates NH3 buses for the 98 AC buses
+that actually exist. Result: 40 of 114 unique pipeline bus references point to non-existent NH3
+buses, creating unconstrained orphaned links.
+
+**Diagnosis**:
+- 98 NH3 buses exist (matching 98 AC buses)
+- NH3 pipelines reference 114 unique buses → 40 missing
+- Missing buses: DE44, DE45, DK33, DK34, etc. (pre-simplification names)
+- H2 pipelines have same bug but tiny capacity (94 MW) masks the issue
+
+**Fix applied**: Added `ac_bus_set` filter in both `attach_ammonia_pipelines()` and
+`attach_hydrogen_pipelines()` to drop candidate bus pairs where either endpoint is not in
+`n.buses[carrier=="AC"]`. This ensures pipelines only connect buses that actually exist.
+
+**Impact**: co2_zero_nh3 results (job 11444046) are **invalid** — must be re-run with the fix.
+
+**Roundtrip efficiency validation** (correctly implemented):
+- el → H2 → el (CCGT H2): 37.0% (electrolysis 0.74 × CCGT 0.50)
+- el → H2 → NH3 → el (CCGT NH3): 29.5% (including Haber-Bosch parasitic draw 0.141 MWh_el/MWh_H2)
+- NH3 storage is 16× cheaper per MWh than H2 (57.70 vs 927.41 EUR/MWh)

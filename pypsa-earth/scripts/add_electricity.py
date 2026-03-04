@@ -254,6 +254,13 @@ def load_costs(tech_costs, config, elec_config, Nyears=1):
         max_hours=max_hours["H2"],
     )
 
+    if "NH3" in max_hours and "ammonia storage" in costs.index:
+        costs.loc["NH3"] = costs_for_storage(
+            costs.loc["ammonia storage"],
+            costs.loc["ammonia synthesis"],
+            max_hours=max_hours["NH3"],
+        )
+
     for attr in ("marginal_cost", "capital_cost"):
         overwrites = config.get(attr)
         if overwrites is not None:
