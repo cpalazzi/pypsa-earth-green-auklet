@@ -104,6 +104,8 @@ pypsa-earth-green-auklet/
 #### europe-year-140 CO2 variants
 - `config.europe-year-140-co2-zero.yaml`: zero CO2 cap
 - `config.europe-year-140-co2-uncapped.yaml`: effectively uncapped CO2
+- `config.europe-year-140-co2-zero-nh3.yaml`: zero CO2 with H2 + NH3 optionality (base costs)
+- `config.europe-year-140-co2-zero-nh3-dea30.yaml`: zero CO2 with H2 + NH3, DEA 2030 costs
 
 ### Creating New Scenarios
 
@@ -137,6 +139,58 @@ pypsa-earth-green-auklet/
    ```
 
 4. The script runs a dry-run first, then the real workflow with a restricted rule set.
+
+## Cost Data
+
+### Cost Files
+
+Two cost files are available in `pypsa-earth/data/`:
+
+| File | Basis | Currency | Description |
+|------|-------|----------|-------------|
+| `costs.csv` | DIW 2010 / budischak2013 | Mixed (2013 EUR + some USD) | Original PyPSA-Earth defaults |
+| `costs_dea2030.csv` | DEA 2030 first, HICP-inflated fallback | 2020 EUR throughout | Updated cost assumptions for 2030 studies |
+
+### Key Differences (costs_dea2030.csv vs costs.csv)
+
+| Technology | Old value | New value | Source |
+|------------|-----------|-----------|--------|
+| Solar utility | 600 EUR/kW | 380 EUR/kW | DEA 2030 sheet 22 |
+| Onshore wind | 1040 EUR/kW | 930 EUR/kW | DEA 2030 sheet 20 |
+| Offshore wind | 2040 EUR/kW | 1640 EUR/kW | DEA 2030 sheet 21 |
+| CCGT | 800 EUR/kW | 883 EUR/kW (η 0.58) | DEA 2030 sheet 05 |
+| OCGT | 400 EUR/kW | 468 EUR/kW (η 0.41) | DEA 2030 sheet 05 |
+| Electrolysis | 669 EUR/kW | 500 EUR/kW (input basis) | DEA 2030 sheet 86 |
+| Battery inverter | 411 USD/kW | 149 EUR/kW | DEA 2030 sheet 180 |
+| H2 pipeline | 267 EUR/MW/km | 400 EUR/MW/km | European Hydrogen Backbone |
+| NH3 pipeline | 267 EUR/MW/km | 200 EUR/MW/km | Hydrogen Council 2021 |
+| H2 storage tank | 11.2 USD/kWh | 47.76 EUR/kWh | DEA 2030 sheet 151 |
+
+Technologies not available from DEA were HICP-inflated from 2013 EUR to 2020 EUR (× 1.084).
+
+### Using the DEA 2030 Costs
+
+The Snakefile reads the cost file path from `costs.file` in config (defaulting to `data/costs.csv`). To use DEA 2030 costs, add to your scenario config:
+
+```yaml
+costs:
+  file: "data/costs_dea2030.csv"
+```
+
+This key is only used when `enable.retrieve_cost_data: false`. An example scenario config using DEA 2030 costs:
+
+```
+configs/scenarios/config.europe-year-140-co2-zero-nh3-dea30.yaml
+```
+
+### Input/Output Basis Conventions
+
+Cost values in the CSV follow the basis expected by the code that applies them:
+
+- **Electrolysis**: input basis (EUR/kW_input_e) — code uses `capital_cost` directly, `p_nom` = MW input
+- **CCGT H2/NH3, NH3 synthesis**: output basis (EUR/kW_output) — code multiplies `capital_cost × efficiency`
+- **Battery inverter**: bidirectional, no conversion needed
+- **Pipelines**: EUR/MW/km, multiplied by line length and submarine cost factor
 
 ## Naming Conventions
 
@@ -379,6 +433,9 @@ Built on [PyPSA-Earth](https://github.com/pypsa-meets-earth/pypsa-earth) by the 
 - [x] European configuration (140 nodes, 1 day)
 - [x] Local and ARC setup scripts
 - [x] Gurobi solver configuration
-- [ ] Validate day scenario
-- [ ] Extend to week/month/year scenarios
+- [x] H2-power scenario (electrolysis, H2 storage, CCGT H2)
+- [x] NH3 scenario (NH3 synthesis, NH3 storage, CCGT NH3, NH3 pipeline)
+- [x] Submarine pipeline cost factor
+- [x] DEA 2030 cost file (costs_dea2030.csv)
+- [ ] Validate DEA 2030 NH3 scenario results
 - [ ] Develop analysis notebooks

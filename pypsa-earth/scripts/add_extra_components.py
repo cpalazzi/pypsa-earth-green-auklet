@@ -395,11 +395,12 @@ def attach_ammonia_pipelines(n, costs, config, transmission_efficiency):
     )
 
     # Determine bus pairs from existing lines/DC links
-    attrs = ["bus0", "bus1", "length"]
+    ln_attrs = ["bus0", "bus1", "length"]
+    lk_attrs = ["bus0", "bus1", "length", "underwater_fraction"]
     ac_bus_set = set(n.buses.index[n.buses.carrier == "AC"])
     candidates = pd.concat(
-        [n.lines[attrs], n.links.query('carrier=="DC"')[attrs]]
-    ).reset_index(drop=True)
+        [n.lines[ln_attrs], n.links.query('carrier=="DC"')[lk_attrs]]
+    ).fillna(0).reset_index(drop=True)
     # Filter to only include bus pairs where BOTH endpoints exist as AC buses.
     # After simplify/cluster, n.lines may reference buses that were merged away;
     # pipelines to non-existent buses create orphaned links that break bus
@@ -415,6 +416,15 @@ def attach_ammonia_pipelines(n, costs, config, transmission_efficiency):
         lambda c: f"NH3 pipeline {c.bus0}-{c.bus1}", axis=1
     )
 
+    # Apply submarine cost factor: underwater portions cost more than onshore
+    submarine_factor = elec_opts.get("pipeline_submarine_cost_factor", 1.0)
+    base_cost_per_km = costs.at["NH3 pipeline", "capital_cost"]
+    capital_cost = (
+        base_cost_per_km
+        * nh3_links.length
+        * (1 + nh3_links.underwater_fraction * (submarine_factor - 1))
+    )
+
     n.madd(
         "Link",
         nh3_links.index,
@@ -423,7 +433,7 @@ def attach_ammonia_pipelines(n, costs, config, transmission_efficiency):
         p_min_pu=-1,
         p_nom_extendable=True,
         length=nh3_links.length.values,
-        capital_cost=costs.at["NH3 pipeline", "capital_cost"] * nh3_links.length,
+        capital_cost=capital_cost,
         carrier="NH3 pipeline",
     )
 
@@ -449,11 +459,12 @@ def attach_hydrogen_pipelines(n, costs, config, transmission_efficiency):
     )
 
     # determine bus pairs
-    attrs = ["bus0", "bus1", "length"]
+    ln_attrs = ["bus0", "bus1", "length"]
+    lk_attrs = ["bus0", "bus1", "length", "underwater_fraction"]
     ac_bus_set = set(n.buses.index[n.buses.carrier == "AC"])
     candidates = pd.concat(
-        [n.lines[attrs], n.links.query('carrier=="DC"')[attrs]]
-    ).reset_index(drop=True)
+        [n.lines[ln_attrs], n.links.query('carrier=="DC"')[lk_attrs]]
+    ).fillna(0).reset_index(drop=True)
     # Filter to only include bus pairs where BOTH endpoints exist as AC buses.
     # After simplify/cluster, n.lines may reference buses that were merged away;
     # pipelines to non-existent buses create orphaned links that break bus
@@ -468,6 +479,15 @@ def attach_hydrogen_pipelines(n, costs, config, transmission_efficiency):
     ]
     h2_links.index = h2_links.apply(lambda c: f"H2 pipeline {c.bus0}-{c.bus1}", axis=1)
 
+    # Apply submarine cost factor: underwater portions cost more than onshore
+    submarine_factor = elec_opts.get("pipeline_submarine_cost_factor", 1.0)
+    base_cost_per_km = costs.at["H2 pipeline", "capital_cost"]
+    capital_cost = (
+        base_cost_per_km
+        * h2_links.length
+        * (1 + h2_links.underwater_fraction * (submarine_factor - 1))
+    )
+
     # add pipelines
     n.madd(
         "Link",
@@ -477,7 +497,7 @@ def attach_hydrogen_pipelines(n, costs, config, transmission_efficiency):
         p_min_pu=-1,
         p_nom_extendable=True,
         length=h2_links.length.values,
-        capital_cost=costs.at["H2 pipeline", "capital_cost"] * h2_links.length,
+        capital_cost=capital_cost,
         carrier="H2 pipeline",
     )
 

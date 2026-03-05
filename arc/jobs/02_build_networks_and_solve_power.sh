@@ -48,6 +48,16 @@ if [[ ! -f "$WORKDIR/Snakefile" ]]; then
   if [[ -f "$WORKDIR/pypsa-earth/Snakefile" ]]; then
     echo "WARN: No Snakefile in WORKDIR '$WORKDIR'; falling back to '$WORKDIR/pypsa-earth'" >&2
     WORKDIR="$WORKDIR/pypsa-earth"
+    # Config paths given relative to auklet root need the prefix stripped
+    NEW_CONFIGS=()
+    for cfg in "${CONFIG_FILES[@]}"; do
+      NEW_CONFIGS+=("${cfg#pypsa-earth/}")
+    done
+    CONFIG_FILES=("${NEW_CONFIGS[@]}")
+    CONFIG_ARGS=()
+    for cfg in "${CONFIG_FILES[@]}"; do
+      CONFIG_ARGS+=("--configfile" "$cfg")
+    done
   elif [[ -f "$DEFAULT_WORKDIR/Snakefile" ]]; then
     echo "WARN: No Snakefile in WORKDIR '$WORKDIR'; falling back to '$DEFAULT_WORKDIR'" >&2
     WORKDIR="$DEFAULT_WORKDIR"

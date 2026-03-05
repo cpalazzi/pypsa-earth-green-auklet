@@ -209,6 +209,7 @@ electricity:
     StorageUnit: [] # battery, H2
     Store: [battery]  # H2 moved to scenario-specific configs
     Link: [] # H2 pipeline, CCGT H2
+  pipeline_submarine_cost_factor: 1.0 # cost multiplier for underwater fraction of H2/NH3 pipelines (e.g. 2.0 to double subsea cost)
 
   powerplants_filter: (DateOut >= 2022 or DateOut != DateOut) and (DateIn <= 2023 or DateIn != DateIn)
   custom_powerplants: false #  "false" use only powerplantmatching (ppm) data, "merge" combines ppm and custom powerplants, "replace" use only custom powerplants

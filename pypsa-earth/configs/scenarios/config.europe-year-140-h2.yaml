@@ -103,6 +103,7 @@ electricity:
   extendable_carriers:
     Store: [battery, H2]
     Link: [CCGT H2, H2 pipeline]
+  pipeline_submarine_cost_factor: 2.0 # cost multiplier for underwater fraction of H2/NH3 pipelines
 
 atlite:
   nprocesses: 4
@@ -111,3 +112,5 @@ atlite:
       module: era5
       dx: 0.3
       dy: 0.3
+
+
