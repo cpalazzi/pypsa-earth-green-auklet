@@ -412,19 +412,74 @@ solving:
 - **PyPSA Docs**: https://pypsa.readthedocs.io/
 - **ARC Guide**: https://arc-user-guide.rc.ox.ac.uk/
 
-## Next Steps
-- [x] Set up repository structure
-- [x] Create European configuration (140 nodes)
-- [x] Configure Gurobi solver
-- [x] Create ARC setup scripts
-- [x] Write testing plan
-- [x] Run initial co2_zero and h2_power solves — identified load shedding dominance
-- [x] Reconfigure for clean H2 A/B comparison (batch 2)
-- [ ] Submit batch 2: 6 runs (3 CO2 levels × with/without H2)
-- [ ] Download and compare batch 2 results
-- [ ] Develop ammonia (NH3) optionality extension
+## Contributions Summary (for paper reference)
+
+Model extensions to PyPSA-Earth v0.8.0 (non-sector electricity workflow):
+
+### Code contributions (`scripts/add_extra_components.py`)
+1. **NH3 carrier implementation** — 3 new `attach_*` functions: NH3 synthesis (Haber-Bosch with parasitic electrical draw), NH3 storage (liquid tank), CCGT NH3 (ammonia-to-power). Adds NH3 bus at each AC node, wired via Link components with configurable efficiencies.
+2. **NH3 pipeline transport** — bidirectional inter-node NH3 pipelines derived from AC transmission topology, with length-proportional costs.
+3. **Submarine pipeline cost factor** — `underwater_fraction`-weighted cost multiplier for H2 and NH3 pipelines (`electricity.pipeline_submarine_cost_factor` config key). Pipelines crossing water pay a configurable premium (default 2×) on the underwater segment.
+4. **Orphaned bus fix** — `ac_bus_set` filter in both H2 and NH3 pipeline functions to drop stale bus references from pre-simplification `n.lines`. Without this, 40 of 114 pipeline endpoints were unconstrained.
+5. **Fuel cell removal** — commented out; H2-to-power exclusively via CCGT H2 to avoid cost-dominated substitution.
+6. **Nuclear made extendable** — added to `extendable_carriers.Generator` in `config.default.yaml`.
+
+### Cost data (`data/costs_dea2030.csv`)
+7. **DEA 2030 cost file** — 226 rows, 63 technologies. Primary source: Danish Energy Agency 2030 projections (4 datasheets). All values in 2020 EUR. Non-DEA rows HICP-inflated from 2013 EUR (×1.084). Key updates vs original `costs.csv`:
+   - Solar utility: 600→380, onwind: 1040→930, offshore: 2040→1640
+   - CCGT: 800→883 (η 0.58), OCGT: 400→468 (η 0.41)
+   - Electrolysis: 669→500 (input basis, corrected from output-basis convention)
+   - Battery inverter: 411 USD→149 EUR, H2 storage tank: 11.2 USD→47.76 EUR
+   - H2 pipeline: 267→400 (European Hydrogen Backbone), NH3 pipeline: 267→200 (Hydrogen Council)
+
+### Infrastructure (`Snakefile`, configs, ARC scripts)
+8. **Configurable cost file** — `costs.file` config key in Snakefile (default `data/costs.csv`), enabling per-scenario cost assumptions without file renaming.
+9. **Scenario configs** — 9 configs covering CO2 × H2 × NH3 × cost-set combinations.
+10. **ARC job scripts** — two-step workflow (profiles → solve), preflight checker, config path fallback logic.
+
+### Validated results (ARC HPC, europe-year-140, 2920 3h snapshots)
+| Scenario | Carriers | Cost file | Status |
+|----------|----------|-----------|--------|
+| co2_limited | battery | original | complete |
+| co2_zero | battery | original | complete |
+| co2_uncapped | battery | original | complete |
+| co2_zero_h2 | battery, H2 | original | complete |
+| co2_zero_nh3 | battery, H2, NH3 | original | complete |
+| co2_zero_nh3_dea30 | battery, H2, NH3 | DEA 2030 | submitted (job 7254231) |
+
+### Key model results
+- **NH3 energy balance**: 1:1 confirmed (98.9 TWh synthesis output)
+- **Roundtrip efficiencies**: el→H2→el 37.0% (η_elec 0.74 × η_CCGT 0.50), el→H2→NH3→el 29.5% (including Haber-Bosch parasitic draw 0.141 MWh_el/MWh_H2)
+- **NH3 storage 16× cheaper** than H2 per MWh (57.70 vs 927.41 EUR/MWh)
+- **Submarine cost factor** produces 146 unique pipeline capital costs (length × underwater fraction)
+
+## Open Work
+- [ ] Download and analyse DEA 2030 NH3 results (job 7254231)
+- [ ] Compare original vs DEA 2030 cost sensitivity
+- [ ] Add co2_limited and co2_uncapped H2/NH3 variants if needed
+- [ ] Nuclear `p_min_pu` sensitivity (baseload floor at 0.3)
+- [ ] Demand-side response / sector coupling
+- [ ] Paper figures and tables from notebook outputs
 
 ## Changes Log
+
+### 5 Mar 2026 — DEA 2030 Cost File and Configurable Cost Path
+- Built `data/costs_dea2030.csv` (226 rows, 63 technologies, all 2020 EUR) from 4 DEA datasheets.
+- Added `costs.file` config key to Snakefile (backward-compatible, defaults to `data/costs.csv`).
+- Created `config.europe-year-140-co2-zero-nh3-dea30.yaml` scenario.
+- Full input/output basis audit of all Link technologies passed.
+- Submitted co2_zero_nh3_dea30 job (7254231) on ARC.
+
+### 4 Mar 2026 — NH3 Implementation and Pipeline Bug Fix
+- Implemented NH3 carrier: synthesis, storage, CCGT NH3, NH3 pipeline in `add_extra_components.py`.
+- Fixed orphaned pipeline bus bug (`ac_bus_set` filter + `reset_index`).
+- Added submarine pipeline cost factor (`electricity.pipeline_submarine_cost_factor`).
+- co2_zero_nh3 solved successfully (171 MB, ~1h40m). Energy balance validated.
+
+### 3 Mar 2026 — Nuclear Dispatch Investigation
+- Nuclear at 26% CF in co2_zero run (128 GW capacity). Economically rational:
+  renewables at zero marginal cost displace nuclear whenever available.
+- Decision: no `p_min_pu` constraint for now (parsimonious baseline).
 
 ### 2 Mar 2026 — Batch 2 Config Overhaul
 **Motivation:** Initial runs showed both co2_zero and h2_power had H2 by default,
@@ -536,39 +591,24 @@ This can be revisited if nuclear dispatch patterns become a focus of analysis.
 
 ## Investigation Plan: H2 and NH3 Optionality Value
 
-### Phase 1: Clean H2 A/B Test
-To properly measure the cost savings from hydrogen optionality:
+### Phase 1: Clean H2 A/B Test — COMPLETE
+Run A (no H2, battery only), Run B (H2 storage + electrolysis + CCGT H2 + pipeline).
+Nuclear made extendable in all configs. Fuel cell removed. Six scenario configs built.
+Results: co2_zero, co2_zero_h2 both solved successfully. Analysis in `notebooks/01_run_analysis.ipynb`.
 
-**Run A (no-H2 baseline):** Override `extendable_carriers.Store: [battery]` — removes all
-H2 infrastructure. H2 buses, electrolysis, fuel cell, stores all disappear.
+### Phase 2: Ammonia Optionality — COMPLETE
+NH3 synthesis, storage, CCGT NH3, and NH3 pipeline implemented in `add_extra_components.py`.
+Orphaned bus bug found and fixed. co2_zero_nh3 solved with submarine pipeline cost factor.
+Energy balance validated (1:1 NH3 mass balance, 98.9 TWh).
 
-**Run B (H2-enabled):** Current `Store: [battery, H2]` (default config). Includes H2
-storage, electrolysis, and fuel cell links.
-
-**Run C (H2-extended):** Add `Link: [CCGT H2, H2 pipeline]` on top of Run B.
-This is the current h2_power config.
-
-Compare: LCOE_A vs LCOE_B vs LCOE_C (excluding load shedding penalty for clean comparison).
-
-### Phase 2: Nuclear as Backstop
-Add `nuclear` to `extendable_carriers.Generator` in all three configs above.
-This provides a high-cost but zero-carbon dispatchable backstop that should eliminate
-most load shedding, giving a cleaner cost comparison between H2 scenarios.
-
-### Phase 3: Ammonia Optionality
-Once H2 architecture is validated, extend to ammonia:
-- NH3 synthesis link (H2 + N2 → NH3, Haber-Bosch)
-- NH3 storage (cheaper $/kWh than H2 tank)
-- NH3 cracker or direct NH3 turbine for power
-- Compare LCOE with and without NH3 pathway
-
-This requires new cost entries in costs.csv and new component wiring in add_extra_components.py.
-The prior overlay repo had some ammonia configs (see `archive/tech_config_ammonia_plant_2030_dea.yaml`)
-which can inform cost assumptions.
+### Phase 3: DEA 2030 Cost Sensitivity — IN PROGRESS
+DEA 2030-first cost file built (`data/costs_dea2030.csv`). Configurable cost file path
+added to Snakefile. co2_zero_nh3_dea30 submitted (job 7254231).
 
 ## Notes on Ammonia Integration
-We intentionally did **not** migrate ammonia scripts/configs from the prior overlay repo. 
-These should be rebuilt with full context later after validating the base electricity model.
+NH3 carrier fully implemented in the non-sector electricity workflow. See
+`references/tech_config_ammonia_plant_2030_dea.yaml` for the original DEA cost extraction
+that informed `costs_dea2030.csv`.
 
 ### NH3 Pipeline Orphaned Bus Bug (4 Mar 2026)
 
