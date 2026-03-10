@@ -721,6 +721,23 @@ memory scales super-linearly (~5–8×). First attempt OOM'd at 128GB (job 72673
 Second attempt timed out at 8h on `short` with 256GB (job 7267378, peak 213GB).
 Resubmitted on `medium` partition (2-day wall time, 256GB) as job 7271075.
 
+## Transmission Loss Modelling & Offshore Wind
+
+**AC lines** (131 lines, total 42 833 km): type `Al/St 240/40 4-bundle 380.0`,
+`s_max_pu = 0.7`, `length_factor = 1.25`. All values are PyPSA-Earth defaults
+(`config.default.yaml`), not DEA parameters. Because PyPSA uses LOPF (linear optimal
+power flow), AC resistive (I²R) losses are **not modelled**; `s_max_pu = 0.7` acts only
+as a thermal derating limit.
+
+**DC links** (76 links): `efficiency = 1.0` across all links — no loss modelling.
+This is also a PyPSA-Earth default.
+
+**Offshore wind**: 30 GW total capacity is present (29 923 MW offwind-dc, 0.1 MW
+offwind-ac). The near-zero offwind-ac results from `max_shore_distance = 30 000 m`
+leaving almost no viable AC-connected area at this spatial resolution. Capacity factor
+for offwind-dc is 0.476 (125.5 TWh generation). The installed capacity aligns with
+IRENA 2023 European offshore statistics (~33 GW).
+
 ## References
 
 Fuel price data and deflator sources used in `costs_dea2030.csv` updates (see [fuel cost audit table](#fossil-fuel-cost-updates-costs_dea2030csv) above). Full data in [references/fuel_cost_updates.csv](references/fuel_cost_updates.csv).

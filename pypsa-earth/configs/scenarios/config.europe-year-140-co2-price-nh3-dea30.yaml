@@ -1,0 +1,124 @@
+# SPDX-FileCopyrightText:  PyPSA-Earth and PyPSA-Eur Authors
+#
+# SPDX-License-Identifier: CC0-1.0
+
+# Europe 140-node full-year run with explicit CO2 price and ammonia optionality.
+# Uses DEA 2030 cost assumptions (costs_dea2030.csv) in 2020 EUR.
+#
+# Carbon price: 60 EUR/tCO2 (2020 EUR).
+# Rationale: 5-year EU ETS average 2021-2025 ≈ €70/tCO2 nominal,
+# deflated to 2020 EUR via cumulative HICP inflation (~17%) ≈ €60/tCO2.
+# No mass cap on CO2 — the price signal alone drives dispatch & investment.
+
+version: 0.8.0
+tutorial: false
+
+logging:
+  level: INFO
+  format: "%(levelname)s:%(name)s:%(message)s"
+
+results_dir: results/
+summary_dir: results/
+
+foresight: overnight
+
+countries:
+  - DE
+  - FR
+  - GB
+  - IT
+  - ES
+  - PL
+  - NL
+  - BE
+  - CZ
+  - RO
+  - SE
+  - PT
+  - GR
+  - HU
+  - AT
+  - BG
+  - DK
+  - FI
+  - SK
+  - IE
+  - HR
+  - LT
+  - SI
+  - LV
+  - EE
+  - CY
+  - LU
+  - MT
+  - "NO"
+  - CH
+  - RS
+  - BA
+  - AL
+  - MK
+  - ME
+
+enable:
+  retrieve_databundle: false
+  retrieve_databundle_sector: false
+  retrieve_cost_data: false
+  download_osm_data: true
+  download_global_buildings: false
+  build_natura_raster: false
+  build_cutout: false
+  progress_bar: true
+  custom_busmap: false
+
+custom_rules: []
+
+run:
+  name: "europe-year-140"
+  sector_name: ""
+  shared_cutouts: true
+  allow_scenario_failure: false
+
+scenario:
+  simpl: [""]
+  ll: ["copt"]
+  clusters: [140]
+  opts: [Co2nocap-Ep60-3h-NH3-DEA30]
+  planning_horizons:
+  - 2030
+  sopts:
+  - "8760h"
+  demand:
+  - "AB"
+
+snapshots:
+  start: "2013-01-01"
+  end: "2014-01-01"
+  inclusive: "left"
+
+co2_budget:
+  enable: false
+  override_co2opt: true
+  co2base_value: co2limit
+
+costs:
+  file: "data/costs_dea2030.csv"
+  emission_prices:
+    co2: 60.0  # EUR/tCO2 (2020 EUR) — used only if Ep wildcard has no number
+
+electricity:
+  co2limit: 1.0e12
+  max_hours:
+    H2: 4380
+    NH3: 4380
+  extendable_carriers:
+    Store: [battery, H2, NH3]
+    Link: [CCGT H2, H2 pipeline, CCGT NH3, NH3 pipeline]
+  pipeline_submarine_cost_factor: 2.0
+
+atlite:
+  nprocesses: 4
+  cutouts:
+    cutout-2013-era5:
+      module: era5
+      dx: 0.3
+      dy: 0.3
