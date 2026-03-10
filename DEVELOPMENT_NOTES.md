@@ -123,6 +123,39 @@ Recommended power sequence:
 1. `01_build_profiles.sh` (renewable profiles)
 2. `02_build_networks_and_solve_power.sh` (network build + solve)
 
+### Submitting Multiple Scenario Jobs (IMPORTANT)
+
+**Never submit multiple solve jobs simultaneously when they share the same `run.name`.**
+
+All our scenario configs (co2-zero, co2-limited, co2-uncapped, co2-price, etc.) share `run.name: "europe-year-140"`. This means they share:
+1. **Snakemake working directory lock** — Snakemake acquires an exclusive lock on the working directory. A second job starting while the first holds the lock will fail immediately.
+2. **Intermediate files** — The `_ec.nc` file (from `add_extra_components`) is rebuilt per scenario with different `extendable_carriers` (e.g., base vs H2 vs NH3). Concurrent jobs would clobber each other's intermediates.
+
+**Use SLURM dependency chaining** to run jobs sequentially:
+
+```bash
+cd /data/engs-df-green-ammonia/engs2523/pypsa-earth-green-auklet/pypsa-earth
+
+# Submit first job
+JOB1_RAW=$(sbatch --parsable -M htc ../arc/jobs/02_build_networks_and_solve_power.sh \
+  co2-price-dea30 configs/scenarios/config.europe-year-140-co2-price-dea30.yaml)
+JOB1=${JOB1_RAW%%;*}   # strip ";htc" cluster suffix from --parsable output
+
+# Chain second job after first
+JOB2_RAW=$(sbatch --dependency=afterany:$JOB1 --parsable -M htc ../arc/jobs/02_build_networks_and_solve_power.sh \
+  co2-price-h2-dea30 configs/scenarios/config.europe-year-140-co2-price-h2-dea30.yaml)
+JOB2=${JOB2_RAW%%;*}
+
+# Chain third job after second
+sbatch --dependency=afterany:$JOB2 -M htc ../arc/jobs/02_build_networks_and_solve_power.sh \
+  co2-price-nh3-dea30 configs/scenarios/config.europe-year-140-co2-price-nh3-dea30.yaml
+```
+
+Notes:
+- Use `afterany` (not `afterok`) so the chain continues even if a prior job fails — each scenario is independent once intermediates are rebuilt.
+- The `${JOB_RAW%%;*}` pattern strips the `;htc` cluster suffix that `--parsable` appends on multi-cluster setups.
+- The job script already handles removing stale `_ec.nc` and `_ec_*.nc` intermediates before each run.
+
 ### Monitoring Jobs
 - Check status across ARC clusters: `squeue --clusters=all -u <user>`
 - Cluster-specific fallback: `squeue -u <user>`
@@ -453,6 +486,32 @@ Model extensions to PyPSA-Earth v0.8.0 (non-sector electricity workflow):
 - **NH3 storage 16× cheaper** than H2 per MWh (57.70 vs 927.41 EUR/MWh)
 - **Submarine cost factor** produces 146 unique pipeline capital costs (length × underwater fraction)
 
+### Fossil fuel cost updates (costs_dea2030.csv)
+All IEA 2011b fuel forecasts in `costs_dea2030.csv` were replaced with recent market-based values (2020 EUR, HICP-deflated from nominal):
+
+| Fuel | Old (IEA 2011b) | New | Source / rationale |
+|------|-----------------|-----|-------------------|
+| Gas | 23.4 | **40.0** | TTF 5yr avg 2021-25 excl. 2022 crisis; rounded up |
+| Coal | 9.1 | **15.0** | API2 5yr avg ~$130/t ≈ 17 EUR/MWhth nom → 15 deflated |
+| Lignite | 3.1 | **6.0** | EU domestic extraction; rising env/reclamation costs; mine-mouth (no shipping) but ~2× old IEA |
+| Biomass | 7.6 | **25.0** | EU mixed feedstock avg (chips, pellets, forestry residues) |
+| Nuclear | 3.3 | 3.3 | Unchanged — uranium spot stable |
+| Oil | 54.2 | 54.2 | Unchanged — IEA WEM2017 broadly OK |
+
+**Gas detail:** Annual TTF averages: 2021 ~47, 2022 ~131 (excluded), 2023 ~41, 2024 ~34, 2025 ~36 EUR/MWh nominal. HICP-deflated 4-year mean ~35, rounded to 40.
+
+**Coal detail:** API2 (CIF ARA) ranged $110–160/t over 2021-25 excl. 2022. At 6.98 MWh/t and ~0.92 EUR/USD, avg ~17 EUR/MWhth nominal. HICP-deflated ≈ 15.
+
+**Lignite detail:** Not internationally traded (mine-mouth). German/Polish production costs estimated at €5-8/MWhth with rising environmental compliance. Phase-out: Germany 2038 (some 2030), Greece 2026, Czechia 2033, Poland no date.
+
+**Biomass detail:** EU industrial wood pellets ~€30-40/MWhth, chips ~€20-30, forestry residues ~€15-20. Weighted average for power sector mix ≈ 25.
+
+Implied electricity fuel costs at DEA 2030 efficiencies:
+- CCGT (η=0.58): 40/0.58 = **69 EUR/MWhel** (was 40)
+- Coal (η=0.46): 15/0.46 = **33 EUR/MWhel** (was 20)
+- Lignite (η=0.45): 6/0.45 = **13 EUR/MWhel** (was 7)
+- Biomass (η=0.47): 25/0.47 = **53 EUR/MWhel** (was 16)
+
 ## Open Work
 - [ ] Download and analyse DEA 2030 NH3 results (job 7254231)
 - [ ] Compare original vs DEA 2030 cost sensitivity
@@ -462,6 +521,12 @@ Model extensions to PyPSA-Earth v0.8.0 (non-sector electricity workflow):
 - [ ] Paper figures and tables from notebook outputs
 
 ## Changes Log
+
+### 6 Mar 2026 — Fossil Fuel Cost Audit & Update
+- Audited all IEA 2011b fuel forecasts in `costs_dea2030.csv` against current market data.
+- Updated gas (40), coal (15), lignite (6), biomass (25) EUR/MWhth — see fuel cost note above.
+- Coal and biomass were most significantly underpriced (coal 12% of dispatch at +65% price gap).
+- All three DEA30 scenarios resubmitted with fully updated cost file.
 
 ### 5 Mar 2026 — DEA 2030 Cost File and Configurable Cost Path
 - Built `data/costs_dea2030.csv` (226 rows, 63 technologies, all 2020 EUR) from 4 DEA datasheets.
@@ -638,3 +703,33 @@ buses, creating unconstrained orphaned links.
 - el → H2 → el (CCGT H2): 37.0% (electrolysis 0.74 × CCGT 0.50)
 - el → H2 → NH3 → el (CCGT NH3): 29.5% (including Haber-Bosch parasitic draw 0.141 MWh_el/MWh_H2)
 - NH3 storage is 16× cheaper per MWh than H2 (57.70 vs 927.41 EUR/MWh)
+
+## 1h Temporal Resolution Sensitivity Run
+
+**Purpose**: Check whether battery capacity changes significantly at 1h vs 3h temporal
+resolution. The hypothesis is that system LCOE will be similar, but battery sizing may
+differ because 3h averaging smooths intra-day variability that drives short-duration
+storage dispatch.
+
+**Config**: `config.europe-year-140-co2-zero-nh3-dea30-1h.yaml` — identical to the 3h
+zero-CO2 NH3 DEA30 config except opts changed from `Co2zero-3h-NH3-DEA30` to
+`Co2zero-1h-NH3-DEA30`. Only step 02 needed; profiles are built at native hourly
+resolution and reused.
+
+**Resource requirements**: The 1h LP is ~3× larger than 3h (8760 vs 2920 snapshots) but
+memory scales super-linearly (~5–8×). First attempt OOM'd at 128GB (job 7267306).
+Second attempt timed out at 8h on `short` with 256GB (job 7267378, peak 213GB).
+Resubmitted on `medium` partition (2-day wall time, 256GB) as job 7271075.
+
+## References
+
+Fuel price data and deflator sources used in `costs_dea2030.csv` updates (see [fuel cost audit table](#fossil-fuel-cost-updates-costs_dea2030csv) above). Full data in [references/fuel_cost_updates.csv](references/fuel_cost_updates.csv).
+
+- **TTF gas price**: ACER, *European Gas Market Reports* (quarterly), https://www.acer.europa.eu/gas/market-monitoring; Trading Economics, *EU Natural Gas — TTF Historical Data*, https://tradingeconomics.com/commodity/eu-natural-gas.
+- **API2 coal price**: Trading Economics, *Coal — Historical Data*, https://tradingeconomics.com/commodity/coal; Intercontinental Exchange (ICE), API2 Rotterdam Coal Futures.
+- **Lignite production cost**: Agora Energiewende, *The German Coal Commission* (2019); DIW Berlin, *Current and Prospective Costs of Electricity Generation* (DataDoc 68, 2013), http://hdl.handle.net/10419/80348.
+- **Biomass fuel price**: IRENA, *Renewable Power Generation Costs in 2023* (Sep 2024); Eurostat, *Wood as a source of energy*, https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Wood_as_a_source_of_energy.
+- **Oil fuel price**: IEA, *World Energy Model Documentation 2017*, http://www.iea.org/media/weowebsite/2017/WEM_Documentation_WEO2017.pdf.
+- **Nuclear fuel price**: DIW Berlin DataDoc 68 (2013); World Nuclear Association, *Uranium Markets*, https://world-nuclear.org/information-library/nuclear-fuel-cycle/uranium-resources/uranium-markets.
+- **HICP deflator**: Eurostat, *HICP — Annual Average Index* (2015=100), https://ec.europa.eu/eurostat/databrowser/view/prc_hicp_aind/. Factor 2013→2020: ×1.084.
+- **Coal phase-out tracker**: Beyond Fossil Fuels, *Europe's Coal Exit*, https://beyondfossilfuels.org/coal-exit-tracker/ (updated Jun 2025).
