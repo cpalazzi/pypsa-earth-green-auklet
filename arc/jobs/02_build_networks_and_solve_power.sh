@@ -161,7 +161,22 @@ SNAKEMAKE="$PYPSA_ENV/bin/snakemake"
 
 export PYPSA_SOLVER_NAME=${PYPSA_SOLVER_NAME:-gurobi}
 export LINOPY_SOLVER=${LINOPY_SOLVER:-gurobi}
-export GRB_LICENSE_FILE=${GRB_LICENSE_FILE:-"/data/engs-df-green-ammonia/engs2523/licenses/gurobi.lic"}
+
+# Use the ARC institutional token-server license (USELIMIT=4096) by pointing
+# GRB_LICENSE_FILE directly at the known path — no `module load Gurobi` needed
+# (that module ships Python 3.10 gurobipy which segfaults under Python 3.11).
+# Fall back to the personal WLS license only if the system file is absent.
+ARC_SYSTEM_GRB_LIC="/apps/system/easybuild/software/Gurobi/10.0.3-GCCcore-12.2.0/gurobi.lic"
+ARC_LICENSE_DIR="${ARC_LICENSE_DIR:-/data/engs-df-green-ammonia/engs2523/licenses}"
+if [[ -z "${GRB_LICENSE_FILE:-}" ]]; then
+  if [[ -f "$ARC_SYSTEM_GRB_LIC" ]]; then
+    export GRB_LICENSE_FILE="$ARC_SYSTEM_GRB_LIC"
+  elif [[ -f "$ARC_LICENSE_DIR/gurobi.lic" ]]; then
+    export GRB_LICENSE_FILE="$ARC_LICENSE_DIR/gurobi.lic"
+  fi
+fi
+echo "Gurobi license: ${GRB_LICENSE_FILE:-(none set)}"
+
 export PROJ_LIB=${PROJ_LIB:-"$PYPSA_ENV/share/proj"}
 export PROJ_DATA=${PROJ_DATA:-"$PYPSA_ENV/share/proj"}
 RERUN_TRIGGERS=${ARC_SNAKE_RERUN_TRIGGERS:-mtime}

@@ -111,6 +111,7 @@ electricity:
   max_hours:
     H2: 4380
   extendable_carriers:
+    Generator: [solar, onwind, offwind-ac, offwind-dc, OCGT, CCGT, nuclear]
     Store: [battery, H2]
     Link: [CCGT H2, H2 pipeline]
   pipeline_submarine_cost_factor: 2.0

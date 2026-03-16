@@ -94,6 +94,11 @@ techs:
   ammonia_synthesis:
     component_type: link
     source_note: DEA 2030 Hydrogen to Ammonia
+    # NOTE: DEA CAPEX (1526 EUR/kW_el ≈ 1732 EUR/kW_NH3 ≈ 1900 USD/kW_NH3) is
+    # at the high end of literature (~2× median). IRENA 2022 reports 600-900
+    # USD/kW_NH3 for 2030; IEA 2021 gives 700-1100. The gap is partly explained
+    # by the 50/50 tech/build split (most studies assume 10-20% installation)
+    # and European EPC costs. Sensitivity analysis on this value is recommended.
     overnight_cost_per_mw: 1526000
     tech_cost_per_mw: 763000 # reactor, catalysts, air separation unit, etc.
     build_cost_per_mw: 763000 # installation

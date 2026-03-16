@@ -2,8 +2,10 @@
 #
 # SPDX-License-Identifier: CC0-1.0
 
-# Europe 140-node full-year run with uncapped CO2 and ammonia optionality.
+# Europe 140-node full-year run with zero CO2 cap.
 # Uses DEA 2030 cost assumptions (costs_dea2030.csv) in 2020 EUR.
+#
+# No hydrogen or ammonia technology — electricity-only decarbonisation.
 
 version: 0.8.0
 tutorial: false
@@ -77,7 +79,7 @@ scenario:
   simpl: [""]
   ll: ["copt"]
   clusters: [140]
-  opts: [Co2nocap-3h-NH3-DEA30]
+  opts: [Co2zero-3h-DEA30]
   planning_horizons:
   - 2030
   sopts:
@@ -99,15 +101,9 @@ costs:
   file: "data/costs_dea2030.csv"
 
 electricity:
-  co2limit: 1.0e12
-  max_hours:
-    H2: 4380
-    NH3: 4380
+  co2limit: 1.0e1
   extendable_carriers:
     Generator: [solar, onwind, offwind-ac, offwind-dc, OCGT, CCGT, nuclear]
-    Store: [battery, H2, NH3]
-    Link: [CCGT H2, H2 pipeline, CCGT NH3, NH3 pipeline]
-  pipeline_submarine_cost_factor: 2.0
 
 atlite:
   nprocesses: 4

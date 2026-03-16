@@ -108,6 +108,8 @@ costs:
 
 electricity:
   co2limit: 1.0e12
+  extendable_carriers:
+    Generator: [solar, onwind, offwind-ac, offwind-dc, OCGT, CCGT, nuclear]
 
 atlite:
   nprocesses: 4
