@@ -779,3 +779,9 @@ Branch `review/td-defaults-alignment`. Inputs follow PyPSA-Earth's default techn
   - 13388415 co2-price-nh3-td30
   - 13388416 co2-zero-nh3-td30-cheapbatt
 - The 1 h check (`...-td30-1h.yaml`) is not submitted. It needs the medium partition and 256 GB.
+- ARC cleanup, 7 Oct 2026, on Carlo's go-ahead. The record is in `/data/engs-df-green-ammonia/engs2523/_maintenance/2026-10-07/cleanup_manifest.tsv`.
+  - Deleted the stray root copies `pypsa-earth/add_extra_components.py` and `pypsa-earth/prepare_network.py`.
+  - Deleted the stray `arc/03_build_networks_and_solve_sector.sh` and `arc/config.europe-year-140-co2-zero-h2-sector.yaml`.
+  - Deleted the pre-fix result archives `results/europe-year-140/networks/_archive_pre_fix_2025_03_03` and `_archive_default_costs_ccgt_ext_2025_03_05`.
+  - Old `slurm-*.out` files moved to `pypsa-earth/logs/slurm/`.
+  - `_resolution_sensitivity` (Appendix F of the paper) and all DEA30 results are kept.
