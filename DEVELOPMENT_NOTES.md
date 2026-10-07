@@ -750,3 +750,32 @@ Fuel price data and deflator sources used in `costs_dea2030.csv` updates (see [f
 - **Nuclear fuel price**: DIW Berlin DataDoc 68 (2013); World Nuclear Association, *Uranium Markets*, https://world-nuclear.org/information-library/nuclear-fuel-cycle/uranium-resources/uranium-markets.
 - **HICP deflator**: Eurostat, *HICP — Annual Average Index* (2015=100), https://ec.europa.eu/eurostat/databrowser/view/prc_hicp_aind/. Factor 2013→2020: ×1.084.
 - **Coal phase-out tracker**: Beyond Fossil Fuels, *Europe's Coal Exit*, https://beyondfossilfuels.org/coal-exit-tracker/ (updated Jun 2025).
+
+## Technology-data runs (TD30), prepared 6 October 2026
+
+Branch `review/td-defaults-alignment`. Inputs follow PyPSA-Earth's default technology-data v0.13.2. DEA or other sources are used only where a component is missing, plus DEA electrolysis (500 EUR/kW_e) and nuclear at 6504 EUR/kW. Discount rate is the PyPSA-Earth default (7 %).
+
+- `build_costs_td2030.py` builds `pypsa-earth/data/costs_td2030.csv` and `costs_td2030_cheapbatt.csv` (battery storage only, tenfold cut). Ammonia components map to Haber-Bosch, NH3 (l) storage tank incl. liquefaction, and CCGT. The NH3 pipeline uses DEA values. Fuel prices are the updates in `references/fuel_cost_updates.csv`.
+- `add_extra_components.py`:
+  - H2 tanks sit on their own "H2 store" bus behind a compressor link (technology-data hydrogen storage compressor: 0.05 MWh_el/MWh_H2) and a valve link.
+  - NH3 synthesis reads hydrogen-input and electricity-input from the costs.
+  - CCGT and synthesis variable O&M are multiplied by efficiency for the bus0 basis.
+- Fixes versus the DEA30 runs:
+  - Electrolysis efficiency is now 0.6217 LHV. It was 0.74 HHV on an LHV bus, about 19 % optimistic for H2 and NH3.
+  - The ammonia tank cost follows technology-data. The old 0.52 EUR/kWh treated 3000 AUD/t as USD.
+  - CCGT variable O&M was charged per MWh of fuel instead of per MWh of electricity.
+- Configs: `configs/scenarios/config.europe-year-140-{co2-zero,co2-zero-h2,co2-zero-nh3,co2-price-nh3}-td30.yaml`, `...-co2-zero-nh3-td30-cheapbatt.yaml` and `...-td30-1h.yaml`.
+- Smoke test: the europe-day-140 week network (168 h) with all components solves optimally with Gurobi in about 4 minutes locally. Year runs have not been started.
+
+## TD30 runs submitted on ARC, 7 October 2026
+
+- Synced to ARC: `build_costs_td2030.py`, `data/costs_td2030*.csv`, `scripts/add_extra_components.py` and the TD30 configs. The previous ARC copy of the script is in `_backups/2026-10-07/`.
+- ARC's `data/` databundle had been re-extracted on 19 May 2026: 179 files with the same contents but new timestamps. With `--rerun-triggers mtime` that would have rebuilt the shapes, the OSM network and the renewable profiles. With Carlo's approval the timestamps were reset to 3 Feb 2026; the old values are in `_backups/2026-10-07/data_mtimes_before_reset.tsv`.
+- A dry-run in a Slurm job confirmed that only `add_electricity` onwards reruns, because the cost file is new.
+- Submitted as one `afterany` chain on the arc cluster (16 CPUs, 128 GB, short):
+  - 13388411 co2-zero-td30
+  - 13388412 co2-zero-h2-td30
+  - 13388414 co2-zero-nh3-td30
+  - 13388415 co2-price-nh3-td30
+  - 13388416 co2-zero-nh3-td30-cheapbatt
+- The 1 h check (`...-td30-1h.yaml`) is not submitted. It needs the medium partition and 256 GB.

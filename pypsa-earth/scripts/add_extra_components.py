@@ -115,14 +115,45 @@ def attach_stores(n, costs, config):
     if "H2" in carriers:
         h2_buses_i = n.madd("Bus", buses_i + " H2", carrier="H2", **bus_sub_dict)
 
+        # Tanks hold compressed hydrogen on their own bus. A compressor link fills
+        # them and buys electricity at the node; a valve link returns the hydrogen.
+        h2_store_buses_i = n.madd(
+            "Bus", buses_i + " H2 store", carrier="H2 store", **bus_sub_dict
+        )
+
         n.madd(
             "Store",
-            h2_buses_i,
-            bus=h2_buses_i,
+            h2_store_buses_i,
+            bus=h2_store_buses_i,
             carrier="H2",
             e_nom_extendable=True,
             e_cyclic=True,
             capital_cost=costs.at["hydrogen storage tank", "capital_cost"],
+        )
+
+        n.madd(
+            "Link",
+            h2_store_buses_i + " compressor",
+            bus0=h2_buses_i,
+            bus1=h2_store_buses_i,
+            bus2=buses_i,
+            carrier="H2 compressor",
+            p_nom_extendable=True,
+            efficiency=1.0,
+            efficiency2=-costs.at[
+                "hydrogen storage compressor", "compression-electricity-input"
+            ],
+            capital_cost=costs.at["hydrogen storage compressor", "capital_cost"],
+        )
+
+        n.madd(
+            "Link",
+            h2_store_buses_i + " discharge",
+            bus0=h2_store_buses_i,
+            bus1=h2_buses_i,
+            carrier="H2 store discharge",
+            p_nom_extendable=True,
+            efficiency=1.0,
         )
 
         n.madd(
@@ -244,11 +275,12 @@ def attach_ammonia_stores(n, costs, config):
       bus1 = NH3 bus (ammonia produced)
       bus2 = AC bus  (electricity consumed for Haber-Bosch)
 
-    From DEA 2030 archived config the stoichiometric recipe is:
-      1.13472 MWh_H2 + 0.16 MWh_el  →  1.0 MWh_NH3
-    which translates to PyPSA link coefficients on a per-unit-H2 basis:
-      efficiency  = 1 / 1.13472 ≈ 0.881   (NH3 out per H2 in)
-      efficiency2 = -0.16 / 1.13472 ≈ -0.141  (AC drawn per H2 in)
+    The cost data give hydrogen-input and electricity-input per MWh of ammonia
+    (LHV); technology-data's Haber-Bosch takes 1.1484 MWh_H2 + 0.2473 MWh_el.
+    On PyPSA's per-unit-H2 basis:
+      efficiency  = 1 / hydrogen-input                    (NH3 out per H2 in)
+      efficiency2 = -electricity-input / hydrogen-input   (AC drawn per H2 in)
+    Capital and variable costs per MWh of ammonia are multiplied by efficiency.
 
     Operational constraints reflect Haber-Bosch process limitations:
       p_min_pu       = 0.3   (minimum stable load ~30% of nameplate)
@@ -303,9 +335,9 @@ def attach_ammonia_stores(n, costs, config):
     )
 
     # --- NH3 synthesis links (H2 → NH3, consuming electricity) ---
-    # DEA recipe: 1.13472 H2 + 0.16 el → 1.0 NH3
-    nh3_synthesis_eff = costs.at["ammonia synthesis", "efficiency"]  # ≈ 0.881
-    elec_per_h2 = 0.16 / 1.13472  # ≈ 0.141
+    hydrogen_input = costs.at["ammonia synthesis", "hydrogen-input"]
+    nh3_synthesis_eff = 1 / hydrogen_input
+    elec_per_h2 = costs.at["ammonia synthesis", "electricity-input"] / hydrogen_input
 
     n.madd(
         "Link",
@@ -317,10 +349,11 @@ def attach_ammonia_stores(n, costs, config):
         p_nom_extendable=True,
         efficiency=nh3_synthesis_eff,
         efficiency2=-elec_per_h2,  # negative = consumed
-        # Capital cost on bus0 (H2 input) basis
+        # Costs per MWh of ammonia, converted to the bus0 (H2 input) basis
         capital_cost=costs.at["ammonia synthesis", "capital_cost"]
         * nh3_synthesis_eff,
-        marginal_cost=costs.at["ammonia synthesis", "marginal_cost"],
+        marginal_cost=costs.at["ammonia synthesis", "marginal_cost"]
+        * nh3_synthesis_eff,
         # Haber-Bosch operational constraints
         p_min_pu=0.3,
         ramp_limit_up=0.1,
@@ -373,7 +406,9 @@ def attach_ammonia_ccgt(n, costs, config):
         efficiency=costs.at["CCGT NH3", "efficiency"],
         capital_cost=costs.at["CCGT NH3", "capital_cost"]
         * costs.at["CCGT NH3", "efficiency"],
-        marginal_cost=costs.at["CCGT NH3", "marginal_cost"],
+        # Variable O&M is per MWh of electricity out; the link flows on bus0.
+        marginal_cost=costs.at["CCGT NH3", "marginal_cost"]
+        * costs.at["CCGT NH3", "efficiency"],
     )
 
     logger.info(f"Added {len(buses_i)} CCGT NH3 links")
@@ -547,7 +582,9 @@ def attach_hydrogen_ccgt(n, costs, config):
         # Link capacity is defined on bus0; convert from electrical-output CAPEX.
         capital_cost=costs.at["CCGT H2", "capital_cost"]
         * costs.at["CCGT H2", "efficiency"],
-        marginal_cost=costs.at["CCGT H2", "marginal_cost"],
+        # Variable O&M is per MWh of electricity out; the link flows on bus0.
+        marginal_cost=costs.at["CCGT H2", "marginal_cost"]
+        * costs.at["CCGT H2", "efficiency"],
     )
 
 
