@@ -117,3 +117,10 @@ atlite:
       module: era5
       dx: 0.3
       dy: 0.3
+
+# Connect isolated fragments of the OSM network (below 20 % of national load) to the nearest
+# backbone bus of the same country. Without this, 27 single-bus islands remained, and four of
+# them shed about 3 TWh a year at the 100 EUR/kWh lost-load price. Malta and Cyprus stay islands.
+cluster_options:
+  simplify_network:
+    s_threshold_fetch_isolated: 0.2

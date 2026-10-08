@@ -785,3 +785,27 @@ Branch `review/td-defaults-alignment`. Inputs follow PyPSA-Earth's default techn
   - Deleted the pre-fix result archives `results/europe-year-140/networks/_archive_pre_fix_2025_03_03` and `_archive_default_costs_ccgt_ext_2025_03_05`.
   - Old `slurm-*.out` files moved to `pypsa-earth/logs/slurm/`.
   - `_resolution_sensitivity` (Appendix F of the paper) and all DEA30 results are kept.
+
+## Isolated buses and lost load, 8 October 2026
+
+**Finding.** Every run since February has 27-33 single-bus AC islands. Four of them (BE59 0, MT50 0, NL52 0, SI69 0) cannot meet their load. Under zero CO2 they shed 3.0 TWh a year at the 100 EUR/kWh lost-load price, 0.08 % of demand; under the CO2 price they shed 1.67 TWh. That penalty was 55-76 % of every objective.
+- The September paper's "system LCOE" divided the objective by demand. It was therefore mostly lost-load penalty, and it left out the existing capacity that PyPSA reports as `objective_constant`.
+- The cost differences between zero-CO2 scenarios were valid, because the penalty was identical in each. The relative savings were not: ammonia saves 7.4 % of the true system cost, not 4 %.
+- Table 6's generation capacity (2.6 TW) also counted 0.64 TW of load-shedding pseudo-generators.
+
+**History.** The 2 March notes (above) found that "load shedding dominated objectives". They attributed it to the lack of a zero-carbon dispatchable option and made nuclear extendable. The follow-up "investigate WHERE" was never done. Nuclear cannot reach islands, so the shedding stayed.
+
+**Cause.** `cluster_options.simplify_network.s_threshold_fetch_isolated: false` in `config.default.yaml`. Isolated fragments of the OSM network then stay islands; most are mainland fragments with 1-15 % of national load.
+
+**Fix.** The TD30 configs set `s_threshold_fetch_isolated: 0.2`. A test rebuild fetched 163 isolated OSM buses into the backbone:
+- AC sub-networks fell from 33 to 8;
+- only Cyprus and Malta remain single-bus islands;
+- Malta still sheds under zero CO2, because its interconnector to Sicily is missing from OSM.
+
+`notebooks/paper_metrics.py` now reports system cost as the objective plus `objective_constant` minus the lost-load penalty, and gives lost load separately. The pre-fix TD30 results are kept locally in `results/europe-year-140/networks/_archive_td30_with_islands_2026_10_07/`.
+
+**Incident.** The test job ran `snakemake ... --forcerun simplify_network <target>`. `--forcerun` takes several values and swallowed the target, so Snakemake ran the first rule, `clean`. That rule's `--delete-all-output`, under the default config, deleted 18 downloaded inputs (33 GB):
+- the ERA5 cutout, GEBCO, natura, EEZ, HydroBASINS, land cover and the SSP2 demand files;
+- the default run's raw OSM files.
+
+All 18 were restored from ARC's 10:05 hourly snapshot with `cp -a` (sizes and timestamps verified). The record is in `/data/engs-df-green-ammonia/engs2523/_maintenance/2026-10-08/`. Lesson: put the Snakemake target first.
