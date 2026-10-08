@@ -809,3 +809,14 @@ Branch `review/td-defaults-alignment`. Inputs follow PyPSA-Earth's default techn
 - the default run's raw OSM files.
 
 All 18 were restored from ARC's 10:05 hourly snapshot with `cp -a` (sizes and timestamps verified). The record is in `/data/engs-df-green-ammonia/engs2523/_maintenance/2026-10-08/`. Lesson: put the Snakemake target first.
+
+**Storage durations are not limited (checked 8 Oct 2026).** `electricity.max_hours` (battery 6, H2 and NH3 4380) only sets StorageUnit costs in `add_electricity.costs_for_storage` and StorageUnit sizes in `attach_storageunits`. The configs add no StorageUnits (`extendable_carriers.StorageUnit` is empty). Battery, H2 and NH3 are Stores with `e_nom` independent of link power; the only extra constraint ties battery charger to discharger power (`add_battery_constraints`).
+- In the September NH3 run, 16 buses hold more than 6 h of battery energy per unit of discharger power (up to 155 h). The average of 6.3 h is an economic outcome.
+- In the TD30 NH3 run before the island fix, three buses hold more than 4380 h of ammonia.
+- Stores are cyclic over the one-year horizon (`e_cyclic=True`), so nothing carries over between years.
+
+**Appendix F, 1 h resolution.** It keeps the March 1 h/3 h pair (September input set, network before the island fix). Both resolutions shed the same 3.02 TWh, so the comparison is unaffected. Recomputed with `notebooks/resolution_check.py DEA30`:
+- System cost per MWh: +0.24 %. The published "less than 0.1 %" used the penalty-diluted objective.
+- Capacities: battery energy +6.5 %, charger +15 %, H2 storage -9 %, NH3 storage unchanged, solar -2.8 %, nuclear +1 %.
+
+A TD30 1 h run is ready but not submitted: from `pypsa-earth/`, `bash ../arc/submit_td30_1h.sh [<jobid> <cluster>]`. It requests medium, 320 GB and 36 h; the March run took 13 h at a 232 GB peak.
