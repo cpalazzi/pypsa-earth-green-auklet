@@ -820,3 +820,26 @@ All 18 were restored from ARC's 10:05 hourly snapshot with `cp -a` (sizes and ti
 - Capacities: battery energy +6.5 %, charger +15 %, H2 storage -9 %, NH3 storage unchanged, solar -2.8 %, nuclear +1 %.
 
 A TD30 1 h run is ready but not submitted: from `pypsa-earth/`, `bash ../arc/submit_td30_1h.sh [<jobid> <cluster>]`. It requests medium, 320 GB and 36 h; the March run took 13 h at a 232 GB peak.
+
+## TD30 results, 9 October 2026
+
+All five TD30 runs (jobs 13437238-44, chained `afterany` on arc) finished on 8 Oct between 14:13 and 22:51. Each took 52 min to 2 h 38 min on 16 CPUs, with peak memory of 35-108 GB against the 128 GB request. Every solve reached "Termination condition: optimal" (Gurobi barrier, no crossover). Results were fetched to `results/europe-year-140/networks/*TD30*.nc`. The table comes from `notebooks/paper_metrics.py TD30` (`results/europe-year-140/paper_metrics_TD30.csv`).
+
+| | co2_zero | co2_zero_h2 | co2_zero_nh3 | co2_price_nh3 | low_cost_batt |
+|---|---:|---:|---:|---:|---:|
+| System cost (EUR/MWh) | 81.53 | 80.90 | 75.16 | 68.84 | 70.82 |
+| Lost load, Malta (TWh) | 1.31 | 1.31 | 1.31 | 0.00 | 1.31 |
+| Generator capacity (TW) | 2.24 | 2.20 | 2.03 | 1.71 | 2.05 |
+| Nuclear (GW; 127.9 existing) | 156.0 | 135.4 | 127.9 | 127.9 | 127.9 |
+| Nuclear capacity factor | 0.37 | 0.39 | 0.75 | 0.81 | 0.75 |
+| Storage (TWh) | 2.09 | 6.44 | 66.80 | 1.11 | 65.21 |
+| Battery: TWh delivered, cycles/yr | 291, 192 | 192, 246 | 202, 286 | 57, 305 | 347, 93 |
+| NH3: TWh delivered, cycles/yr | - | - | 68.0, 1.8 | 0.3, 0.6 | 39.8, 1.2 |
+| H2: TWh delivered, cycles/yr | - | 24.7, 8.1 | 1.2, 49 | 0.1, 39 | <0.1, 24 |
+
+- Storage includes 0.51 TWh of existing hydro StorageUnits (6 h). Generator capacity includes 0.40 TW of existing coal, lignite, oil and gas plants, which are idle under the zero cap.
+- Under the zero cap, ammonia takes the seasonal role. The NH3 store falls from 65 TWh in early January to almost zero on 31 March and refills from April to December. Ammonia CCGT output is 22.5, 20.3 and 7.3 TWh in January to March.
+- Electrolysis (38.9 GW) and synthesis are in Greece, Britain and Ireland. NH3 CCGTs and stores are largest in Germany, Greece and Britain. Batteries are mostly in Italy and Spain.
+- With ammonia, no new nuclear is built. Without hydrogen or ammonia, 28 GW is added but the fleet runs at 37 %.
+- At 60 EUR/t CO2, existing CCGTs generate 249 TWh (about 7 % of demand) and ammonia is almost unused. This contradicts the September DEA30 result (3 TWh of ammonia), which was distorted by lost load at four islands.
+- Figures: `notebooks/paper_figures.py` wrote `pypsa_generation_map_co2_zero_nh3.png` and `pypsa_soc_co2_zero_nh3.png` to the paper's `images/`.
