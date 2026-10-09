@@ -845,3 +845,13 @@ All five TD30 runs (jobs 13437238-44, chained `afterany` on arc) finished on 8 O
 - Figures: `notebooks/paper_figures.py` wrote `pypsa_generation_map_co2_zero_nh3.png` and `pypsa_soc_co2_zero_nh3.png` to the paper's `images/`.
 - Existing pumped hydro (50 units, 54 GW) has `max_hours = 0` in the clustered networks, so it holds no energy and never runs. Hydro reservoirs (85 GW) use the 6 h default (`hydro_max_hours` is "not active"), 0.51 TWh in total, so seasonal hydro storage is not represented. The paper states both; fixing them needs a rerun.
 - `notebooks/paper_figures.py` now gives the map legend plain names and leaves out plants that never run.
+
+## Hydro storage fix and TD30 rerun, 9 October 2026
+
+- **Pumped hydro.** All 149 pumped hydro plants (54 GW) have no duration in `resources/europe-year-140/powerplants.csv`; the value is NaN, not 0. `add_electricity.attach_hydro` replaced only 0 with `PHS_max_hours`, so the plants kept NaN and the clustered networks carried `max_hours = 0`: pumped hydro held no energy. The fix fills NaN as well, so every plant gets the configured 6 h (0.32 TWh in total). PyPSA-Eur's version of this line already handled NaN.
+- **Hydro reservoirs.** All 679 reservoirs (85.6 GW) also lack durations, so the `energy_capacity_totals_by_country` option sizes them from the `E_store[TWh]` column of `data/hydro_capacities.csv`. PyPSA-Earth's table has no European rows, so every European reservoir fell back to `hydro_max_hours_default` (6 h, 0.51 TWh in total).
+  - The TD30 configs now set `renewable: hydro: hydro_capacities_extra: data/hydro_capacities_europe.csv`. That file is PyPSA-Eur's `data/hydro_capacities.csv` (master, downloaded 9 Oct 2026 with Carlo's approval; PyPSA-Eur's docs say its provenance is unclear).
+  - The Snakefile passes it to `add_electricity` only, so the renewable profiles are not rebuilt.
+  - Result: 206 TWh across 85.3 GW in the clustered network (NO 84.4, SE 33.6, ES 18.2, RO 12.1, FR 9.3, IT 8.4, CH 8.3 TWh). AL, ME and MK keep the 6 h default. Clustering weights `max_hours` by capacity (PyPSA 0.30), so energy is preserved.
+- Check job 13447810 dry-ran first (no upstream rules), then built the co2-zero prepared network and confirmed the numbers above.
+- The rerun chain on arc is 13447916-20 (`_maintenance/2026-10-09/td30_submissions.txt`). The pre-fix results are archived in `results/europe-year-140/networks/_archive_td30_before_hydro_fix_2026_10_09/`.
