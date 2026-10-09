@@ -841,5 +841,5 @@ All five TD30 runs (jobs 13437238-44, chained `afterany` on arc) finished on 8 O
 - Under the zero cap, ammonia takes the seasonal role. The NH3 store falls from 65 TWh in early January to almost zero on 31 March and refills from April to December. Ammonia CCGT output is 22.5, 20.3 and 7.3 TWh in January to March.
 - Electrolysis (38.9 GW) and synthesis are in Greece, Britain and Ireland. NH3 CCGTs and stores are largest in Germany, Greece and Britain. Batteries are mostly in Italy and Spain.
 - With ammonia, no new nuclear is built. Without hydrogen or ammonia, 28 GW is added but the fleet runs at 37 %.
-- At 60 EUR/t CO2, existing CCGTs generate 249 TWh (about 7 % of demand) and ammonia is almost unused. This contradicts the September DEA30 result (3 TWh of ammonia), which was distorted by lost load at four islands.
+- At 60 EUR/t CO2, existing CCGTs generate 249 TWh (about 7 % of demand) and ammonia is almost unused. The September DEA30 run gave 3 TWh of ammonia. Those runs differ in both inputs (DEA costs, the HHV electrolysis efficiency, the AUD tank cost) and network (four islands shedding load), so this comparison does not isolate the cause.
 - Figures: `notebooks/paper_figures.py` wrote `pypsa_generation_map_co2_zero_nh3.png` and `pypsa_soc_co2_zero_nh3.png` to the paper's `images/`.
