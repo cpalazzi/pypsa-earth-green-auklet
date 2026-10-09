@@ -36,10 +36,17 @@ TECH_COLORS = {
     "H2": "#ff29d2", "NH3": "#46a88c", "battery": "#999999",
 }
 NOT_CAPACITY = {"DC", "B2B", "H2 pipeline", "NH3 pipeline", "H2 compressor", "H2 store discharge"}
+# Legend names for readers of the paper.
+DISPLAY = {"onwind": "onshore wind", "offwind-ac": "offshore wind (AC)", "offwind-dc": "offshore wind (DC)",
+           "ror": "run-of-river hydro", "CCGT": "gas CCGT", "OCGT": "gas OCGT", "H2 electrolysis": "electrolysis",
+           "CCGT H2": "hydrogen CCGT", "NH3 synthesis": "ammonia synthesis", "CCGT NH3": "ammonia CCGT"}
 
 
 def capacity_by_bus(n):
     gens = n.generators[n.generators.carrier != "load shedding"]
+    # Leave out plants that never run (existing fossil plants under a zero-CO2 cap).
+    output = n.generators_t.p.mul(n.snapshot_weightings.generators, axis=0).sum().groupby(n.generators.carrier).sum()
+    gens = gens[gens.carrier.map(output).fillna(0.0) > 1e5]
     cap = gens.groupby(["bus", "carrier"]).p_nom_opt.sum().unstack(fill_value=0.0)
     ac = set(n.buses.index[n.buses.carrier == "AC"])
     links = n.links[~n.links.carrier.isin(NOT_CAPACITY)].copy()
@@ -81,7 +88,7 @@ def plot_map(n, path):
                                facecolor=TECH_COLORS.get(carrier, "#aaaaaa"), edgecolor="white", linewidth=0.3))
             start += angle
     handles = [plt.Line2D([0], [0], marker="o", color="w", markerfacecolor=TECH_COLORS.get(c, "#aaaaaa"),
-                          label=c, markersize=8) for c in cap.columns if cap[c].sum() > 0]
+                          label=DISPLAY.get(c, c), markersize=8) for c in cap.columns if cap[c].sum() > 0]
     ax.add_artist(ax.legend(handles=handles, loc="upper left", fontsize="small", ncol=2, frameon=True))
     y = 70.0
     for gw in (100, 50):

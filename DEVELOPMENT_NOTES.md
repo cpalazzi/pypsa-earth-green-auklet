@@ -831,7 +831,7 @@ All five TD30 runs (jobs 13437238-44, chained `afterany` on arc) finished on 8 O
 | Lost load, Malta (TWh) | 1.31 | 1.31 | 1.31 | 0.00 | 1.31 |
 | Generator capacity (TW) | 2.24 | 2.20 | 2.03 | 1.71 | 2.05 |
 | Nuclear (GW; 127.9 existing) | 156.0 | 135.4 | 127.9 | 127.9 | 127.9 |
-| Nuclear capacity factor | 0.37 | 0.39 | 0.75 | 0.81 | 0.75 |
+| Nuclear capacity factor | 0.37 | 0.39 | 0.75 | 0.80 | 0.75 |
 | Storage (TWh) | 2.09 | 6.44 | 66.80 | 1.11 | 65.21 |
 | Battery: TWh delivered, cycles/yr | 291, 192 | 192, 246 | 202, 286 | 57, 305 | 347, 93 |
 | NH3: TWh delivered, cycles/yr | - | - | 68.0, 1.8 | 0.3, 0.6 | 39.8, 1.2 |
@@ -843,3 +843,5 @@ All five TD30 runs (jobs 13437238-44, chained `afterany` on arc) finished on 8 O
 - With ammonia, no new nuclear is built. Without hydrogen or ammonia, 28 GW is added but the fleet runs at 37 %.
 - At 60 EUR/t CO2, existing CCGTs generate 249 TWh (about 7 % of demand) and ammonia is almost unused. The September DEA30 run gave 3 TWh of ammonia. Those runs differ in both inputs (DEA costs, the HHV electrolysis efficiency, the AUD tank cost) and network (four islands shedding load), so this comparison does not isolate the cause.
 - Figures: `notebooks/paper_figures.py` wrote `pypsa_generation_map_co2_zero_nh3.png` and `pypsa_soc_co2_zero_nh3.png` to the paper's `images/`.
+- Existing pumped hydro (50 units, 54 GW) has `max_hours = 0` in the clustered networks, so it holds no energy and never runs. Hydro reservoirs (85 GW) use the 6 h default (`hydro_max_hours` is "not active"), 0.51 TWh in total, so seasonal hydro storage is not represented. The paper states both; fixing them needs a rerun.
+- `notebooks/paper_figures.py` now gives the map legend plain names and leaves out plants that never run.
