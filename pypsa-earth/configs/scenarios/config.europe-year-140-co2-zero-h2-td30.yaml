@@ -124,3 +124,9 @@ atlite:
 cluster_options:
   simplify_network:
     s_threshold_fetch_isolated: 0.2
+
+# European reservoir energy by country (PyPSA-Eur data/hydro_capacities.csv); the global
+# table that PyPSA-Earth ships has no European rows, so reservoirs fell back to 6 h.
+renewable:
+  hydro:
+    hydro_capacities_extra: data/hydro_capacities_europe.csv

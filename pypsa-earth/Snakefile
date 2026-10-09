@@ -588,6 +588,7 @@ rule add_electricity:
         #Link: https://drive.google.com/drive/u/1/folders/1dkW1wKBWvSY4i-XEuQFFBj242p0VdUlM
         gadm_shapes="resources/" + RDIR + "shapes/gadm_shapes.geojson",
         hydro_capacities="data/hydro_capacities.csv",
+        hydro_capacities_extra=config["renewable"]["hydro"].get("hydro_capacities_extra", []),
         demand_profiles="resources/" + RDIR + "demand_profiles.csv",
     output:
         "networks/" + RDIR + "elec.nc",

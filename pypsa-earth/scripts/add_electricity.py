@@ -594,7 +594,8 @@ def attach_hydro(n, costs, ppl):
     if "PHS" in carriers and not phs.empty:
         # fill missing max hours to config value and
         # assume no natural inflow due to lack of data
-        phs = phs.replace({"max_hours": {0: c["PHS_max_hours"]}})
+        # Missing durations are NaN in the power plant data, not 0, so fill both.
+        phs["max_hours"] = phs["max_hours"].replace(0, np.nan).fillna(c["PHS_max_hours"])
         n.madd(
             "StorageUnit",
             phs.index,
@@ -620,6 +621,15 @@ def attach_hydro(n, costs, ppl):
             .groupby("Country")
             .sum()
         )
+        # The global table has no European rows; an extra table in the same format can add them.
+        extra = snakemake.input.get("hydro_capacities_extra")
+        if extra:
+            extra_stats = (
+                pd.read_csv(extra, comment="#", na_values=["-"])
+                .groupby("Country")
+                .sum(numeric_only=True)
+            )
+            hydro_stats = extra_stats.combine_first(hydro_stats)
         e_target = hydro_stats["E_store[TWh]"].clip(lower=0.2) * 1e6
         e_installed = hydro.eval("p_nom * max_hours").groupby(hydro.country).sum()
         e_missing = e_target - e_installed
