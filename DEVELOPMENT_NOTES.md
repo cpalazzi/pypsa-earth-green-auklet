@@ -884,3 +884,4 @@ All five reruns (13447916-20) finished optimal on 9-10 Oct (47 min to 3 h 16 min
   - Gzipped Geofabrik MD5 files: fixed in earth-osm 3.0.2 (earth-osm issue 75, October 2025). The arc environment has earth-osm 3.0.2 and PyPSA-Earth now requires it, so `pypsa-earth/sitecustomize.py` duplicates installed code and can go.
   - `extra_functionality` chaining: a feature, unused here.
   - `retrieve_cost_data` local path: no failure reproduced with upstream's Snakemake 7 pin.
+- Later on 10 Oct: the fork's main was reset to upstream main (4f6bae8e), and its two old branches were deleted on GitHub. The old commits stay in the clone's local branches `archive/old-main`, `add-gzip-detection-to-verify-pbf` and `fix/retrieve-cost-data-local-path`. A scheduled task (`pypsa-earth-issues-reminder`, 13 Oct 2026 at 09:00) reminds Carlo about the reports and holds the drafts.
