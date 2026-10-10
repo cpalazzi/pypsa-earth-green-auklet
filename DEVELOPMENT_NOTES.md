@@ -885,3 +885,12 @@ All five reruns (13447916-20) finished optimal on 9-10 Oct (47 min to 3 h 16 min
   - `extra_functionality` chaining: a feature, unused here.
   - `retrieve_cost_data` local path: no failure reproduced with upstream's Snakemake 7 pin.
 - Later on 10 Oct: the fork's main was reset to upstream main (4f6bae8e), and its two old branches were deleted on GitHub. The old commits stay in the clone's local branches `archive/old-main`, `add-gzip-detection-to-verify-pbf` and `fix/retrieve-cost-data-local-path`. A scheduled task (`pypsa-earth-issues-reminder`, 13 Oct 2026 at 09:00) reminds Carlo about the reports and holds the drafts.
+- TD30 1 h run with hydro storage (`Co2zero-1h-NH3-TD30`, the Ammonia scenario at 1 h), submitted at Carlo's request on 10 Oct 2026:
+  - Job 13450571 on arc (medium, 16 CPUs, 320 GB, 36 h), running on arc-c229 since 16:18.
+  - A dry-run job (13450568) first confirmed that only `prepare_network` and `solve_network` run.
+  - The submission is logged in `/data/engs-df-green-ammonia/engs2523/_maintenance/2026-10-10/td30_1h_submission.txt`.
+  - When it ends:
+    1. Check `sacct -M arc -j 13450571 --format=JobID,State,Elapsed,MaxRSS`.
+    2. Fetch `results/europe-year-140/networks/elec_s_140_ec_lcopt_Co2zero-1h-NH3-TD30.nc`.
+    3. Compare it with `Co2zero-3h-NH3-TD30`, adapting `notebooks/resolution_check.py`.
+    4. Put the resolution check back into the paper.
