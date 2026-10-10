@@ -855,3 +855,22 @@ All five TD30 runs (jobs 13437238-44, chained `afterany` on arc) finished on 8 O
   - Result: 206 TWh across 85.3 GW in the clustered network (NO 84.4, SE 33.6, ES 18.2, RO 12.1, FR 9.3, IT 8.4, CH 8.3 TWh). AL, ME and MK keep the 6 h default. Clustering weights `max_hours` by capacity (PyPSA 0.30), so energy is preserved.
 - Check job 13447810 dry-ran first (no upstream rules), then built the co2-zero prepared network and confirmed the numbers above.
 - The rerun chain on arc is 13447916-20 (`_maintenance/2026-10-09/td30_submissions.txt`). The pre-fix results are archived in `results/europe-year-140/networks/_archive_td30_before_hydro_fix_2026_10_09/`.
+
+### TD30 results with hydro storage restored, 10 October 2026
+
+All five reruns (13447916-20) finished optimal on 9-10 Oct (47 min to 3 h 16 min, peak 39-107 GB). Results are fetched to `results/europe-year-140/networks/*TD30*.nc` and `paper_metrics_TD30.csv`. The pre-fix runs are in `_archive_td30_before_hydro_fix_2026_10_09/`.
+
+| | Base | Hydrogen | Ammonia | Carbon price | Cheap batteries |
+|---|---:|---:|---:|---:|---:|
+| System LCOE (EUR/MWh) | 73.12 | 72.57 | 69.36 | 66.01 | 65.94 |
+| Stores built (TWh; hydro adds 206.47) | 1.42 | 3.75 | 29.10 | 0.22 | 25.56 |
+| Battery: TWh delivered, cycles/yr | 207, 152 | 128, 258 | 161, 327 | 38, 340 | 347, 125 |
+| NH3: TWh delivered, cycles/yr | - | - | 24.6, 1.6 | 0.08, 0.8 | 14.4, 1.1 |
+| H2: TWh delivered, cycles/yr | - | 15.8, 8.2 | 0.15, 68 | 0.02, 35 | 0.01, 25 |
+| Nuclear capacity factor (127.9 GW, none new) | 0.63 | 0.68 | 0.85 | 0.84 | 0.92 |
+
+- Hydro reservoirs (206 TWh) fall by 52-55 TWh from 1 January to mid-April under the zero cap.
+- In the Ammonia scenario, the NH3 store (28.5 TWh) empties from 6 January to 2 March. CCGT NH3 delivers 11.5 TWh in January and 7.4 TWh in February. Store ratios: battery about 6 h; NH3 charges over about 4600 h (tau_C) and discharges over about 260 h (tau_R).
+- Carbon price: gas CCGTs generate 96 TWh and emit 35 Mt of CO2; payments are 0.58 EUR/MWh of demand.
+- Effect of the fix: system LCOE falls by 8-10 %, no new nuclear is built even in Base, and ammonia delivers 24.6 TWh instead of 68 (it lowers system LCOE by 4.4 % instead of 7.1 %).
+- `notebooks/paper_figures.py` now plots hydro reservoirs next to ammonia (state of charge) and shows hydro storage capacity on the map.
