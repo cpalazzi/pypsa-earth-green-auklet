@@ -874,3 +874,13 @@ All five reruns (13447916-20) finished optimal on 9-10 Oct (47 min to 3 h 16 min
 - Carbon price: gas CCGTs generate 96 TWh and emit 35 Mt of CO2; payments are 0.58 EUR/MWh of demand.
 - Effect of the fix: system LCOE falls by 8-10 %, no new nuclear is built even in Base, and ammonia delivers 24.6 TWh instead of 68 (it lowers system LCOE by 4.4 % instead of 7.1 %).
 - `notebooks/paper_figures.py` now plots hydro reservoirs next to ammonia (state of charge) and shows hydro storage capacity on the map.
+
+### Only the hydro-storage runs kept; upstream reports, 10 October 2026
+
+- Carlo: only runs with pumped hydro and reservoir storage stay. On the Mac, the DEA30 networks, `paper_metrics_DEA30.csv`, `_resolution_sensitivity`, the five `_archive_*` folders, `results/europe-day-140` and `_verify_nuclear_cost.py` went to the macOS Trash. On arc, 11 items (1.9 GB: the nine DEA30 networks, `_resolution_sensitivity` and `results/europe-year-140-co2-zero-h2-sector`) were moved to `/data/engs-df-green-ammonia/engs2523/_to_delete_2026-10-10/`, listed in `/data/engs-df-green-ammonia/engs2523/_maintenance/2026-10-10/cleanup_manifest.tsv`. Carlo deletes that folder.
+- `notebooks/resolution_check.py` and `02_resolution_analysis.ipynb` read the removed 1 h/3 h DEA30 pair. They stay for a 1 h check with hydro storage (`arc/submit_td30_1h.sh`), which is not submitted.
+- Upstream PyPSA-Earth `main` (4f6bae8e, 10 Oct 2026) still has both hydro problems: `attach_hydro` fills only zero PHS `max_hours`, and `data/hydro_capacities.csv` has only African rows. The fork clone `~/programming/pypsa_models/pypsa-earth` (origin `cpalazzi/pypsa-earth`, remote `upstream`) has branch `fix/phs-max-hours-nan` (commit `db3a3226`, not pushed) with PyPSA-Eur's one-line fix. Two issue drafts and a PR description wait for Carlo's approval. The local patches here stay until auklet takes a PyPSA-Earth version that includes them.
+- The fork's earlier fixes, checked 10 Oct 2026:
+  - Gzipped Geofabrik MD5 files: fixed in earth-osm 3.0.2 (earth-osm issue 75, October 2025). The arc environment has earth-osm 3.0.2 and PyPSA-Earth now requires it, so `pypsa-earth/sitecustomize.py` duplicates installed code and can go.
+  - `extra_functionality` chaining: a feature, unused here.
+  - `retrieve_cost_data` local path: no failure reproduced with upstream's Snakemake 7 pin.
