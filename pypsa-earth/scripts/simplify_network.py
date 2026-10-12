@@ -93,6 +93,7 @@ import numpy as np
 import pandas as pd
 import pypsa
 import scipy as sp
+import shapely
 from _helpers import (
     configure_logging,
     create_logger,
@@ -109,10 +110,179 @@ from pypsa.clustering.spatial import (
 )
 from pypsa.io import import_components_from_dataframe, import_series_from_dataframe
 from scipy.sparse.csgraph import connected_components, dijkstra
+from scipy.spatial import cKDTree
 
 sys.settrace
 
 logger = create_logger(__name__)
+
+
+def _vertices(geometry):
+    """
+    Return the vertices of a WKT geometry as an (n, 2) array.
+    """
+    if not isinstance(geometry, str) or not geometry:
+        return np.empty((0, 2))
+    return shapely.get_coordinates(shapely.from_wkt(geometry, on_invalid="ignore"))
+
+
+def drop_duplicate_branches(
+    n,
+    length_tol=1e-3,
+    geometry_tol=1e-5,
+    vertex_tol=1e-6,
+    coverage_min=0.8,
+    split_copies=False,
+):
+    """
+    Remove lines and DC links that copy a branch made from the same OSM
+    element.
+
+    OSM elements that cross a border, or lie close to one, are in more than
+    one country extract, and base_network turns each copy into a branch of its
+    own. A copy has the parameters of the original, and its vertices match the
+    original's only up to floating-point noise, because the extracts store
+    coordinates with slightly different rounding. Branches made from one
+    element tagged with several circuits of the same voltage have byte-identical
+    vertices and are kept. If copies ever had byte-identical vertices too, they
+    would be kept as well: the function would then drop nothing.
+
+    Copies are found in two steps, separately for lines and DC links, among
+    branches with the same parameters (lines: v_nom, type and num_parallel;
+    links: p_nom):
+
+    1. branches between the same two buses, with lengths within
+       ``length_tol`` km and geometries within ``geometry_tol`` degrees of
+       each other (Hausdorff distance) but not identical;
+    2. copies split at other points than the original: a branch whose
+       interior vertices match, within ``vertex_tol`` degrees but not exactly,
+       at least ``coverage_min`` of the vertices of another branch between the
+       same buses; with ``split_copies``, also a branch covered in that way by a
+       chain of other branches that connects its two end buses.
+
+    The first branch of each set of copies is kept. Without ``split_copies``,
+    only branches parallel to a kept branch are removed, so the set of
+    neighbours of every bus, and with it stub removal, link simplification and
+    clustering, is unchanged.
+    """
+    for c in ["Line", "Link"]:
+        df = n.df(c)
+        if c == "Link":
+            df = df[df.carrier == "DC"]
+        if df.empty or "geometry" not in df.columns:
+            continue
+
+        if c == "Line":
+            parameters = (
+                df.v_nom.astype(str)
+                + "|"
+                + df["type"].astype(str)
+                + "|"
+                + df.num_parallel.round(6).astype(str)
+            )
+            capacity = df.s_nom
+        else:
+            parameters = df.p_nom.round(3).astype(str)
+            capacity = df.p_nom
+        bus_a = df.bus0.where(df.bus0 < df.bus1, df.bus1)
+        bus_b = df.bus1.where(df.bus0 < df.bus1, df.bus0)
+        vertices = {i: _vertices(g) for i, g in df.geometry.items()}
+        geometries = pd.Series(
+            shapely.from_wkt(df.geometry.fillna("").values, on_invalid="ignore"),
+            index=df.index,
+        )
+
+        def identical(i, j):
+            a, b = vertices[i], vertices[j]
+            return a.shape == b.shape and (
+                np.array_equal(a, b) or np.array_equal(a, b[::-1])
+            )
+
+        # 1. copies between the same buses
+        drop = []
+        for _, group in df.groupby([bus_a, bus_b, parameters]):
+            if len(group) < 2:
+                continue
+            group = group.sort_values("length")
+            same_length = (group.length.diff() > length_tol).cumsum()
+            for _, candidates in group.groupby(same_length):
+                classes = []
+                for i in candidates.index:
+                    for cl in classes:
+                        if identical(i, cl[0]):
+                            cl.append(i)
+                            break
+                    else:
+                        classes.append([i])
+                for cl in classes[1:]:
+                    distance = shapely.hausdorff_distance(
+                        geometries[classes[0][0]], geometries[cl[0]]
+                    )
+                    if distance < geometry_tol:
+                        drop.extend(cl)
+
+        # 2. copies split at other points than the original
+        idx = list(df.index.difference(drop))
+        arrays = [vertices[i] for i in idx]
+        if sum(len(a) for a in arrays) > 0:
+            owner = np.repeat(np.arange(len(idx)), [len(a) for a in arrays])
+            points = np.concatenate(arrays)
+            tree = cKDTree(points)
+            par = parameters.loc[idx].to_numpy()
+            b0 = df.bus0.loc[idx].to_numpy()
+            b1 = df.bus1.loc[idx].to_numpy()
+            cover = {}
+            for k, a in enumerate(arrays):
+                inner = a[1:-1] if len(a) > 2 else a
+                if len(inner) == 0:
+                    continue
+                counts = {}
+                for v, hits in zip(inner, tree.query_ball_point(inner, r=vertex_tol)):
+                    matched = set()
+                    for h in hits:
+                        j = owner[h]
+                        if j == k or j in matched or par[j] != par[k]:
+                            continue
+                        if np.array_equal(points[h], v):
+                            continue
+                        matched.add(j)
+                        counts[j] = counts.get(j, 0) + 1
+                for j, count in counts.items():
+                    cover[k, j] = count / len(inner)
+
+            dropped = set()
+            for (k, j), share in sorted(cover.items(), key=lambda x: -x[1]):
+                if (
+                    share >= coverage_min
+                    and {b0[k], b1[k]} == {b0[j], b1[j]}
+                    and not {k, j} & dropped
+                ):
+                    dropped.add(k)
+            parts = {}
+            if split_copies:
+                for (k, j), share in cover.items():
+                    if share >= coverage_min and {b0[k], b1[k]} != {b0[j], b1[j]}:
+                        parts.setdefault(j, []).append(k)
+            for j, ks in parts.items():
+                ks = [k for k in ks if k not in dropped]
+                if j in dropped or len(ks) < 2:
+                    continue
+                degree = {}
+                for k in ks:
+                    for b in (b0[k], b1[k]):
+                        degree[b] = degree.get(b, 0) + 1
+                if {b for b, d in degree.items() if d == 1} == {b0[j], b1[j]}:
+                    dropped.add(j)
+            drop.extend(idx[k] for k in dropped)
+
+        if drop:
+            logger.info(
+                f"Dropping {len(drop)} {n.components[c]['list_name']} that copy another "
+                f"branch of the same OSM element ({capacity[drop].sum():.0f} MW or MVA)"
+            )
+            n.mremove(c, drop)
+
+    return n
 
 
 def simplify_network_to_base_voltage(n, linetype, base_voltage):
@@ -441,13 +611,28 @@ def simplify_links(
             )
             name = all_dc_lengths.idxmax() + "+{}".format(len(all_dc_branches) - 1)
 
+            # `dc_edges` holds, for each pair of consecutive buses along the chain,
+            # the branches between them. Branches within a segment run in parallel,
+            # so their capacities add up; segments run in series, so the chain is
+            # limited by its weakest segment and its length is the sum of the
+            # segment lengths. (The upstream code summed over all links.)
+            dc_component = "Link" if dc_as_links else "Line"
+            dc_df = n.links if dc_as_links else n.lines
+            capacity_attr = "p_nom" if dc_as_links else "s_nom"
+            segments = [
+                [i for c, i in segment if c == dc_component] for segment in dc_edges
+            ]
+            segments = [segment for segment in segments if segment]
+            length = sum(dc_df.loc[segment, "length"].mean() for segment in segments)
+            p_nom = min(
+                (dc_df.loc[segment, capacity_attr].sum() for segment in segments),
+                default=0.0,
+            )
+
             # HVDC part is represented as "Link" component
             if dc_as_links:
                 p_max_pu = config_links.get("p_max_pu", 1.0)
                 lengths = n.links.loc[all_links, "length"]
-                i_links = [i for _, i in sum(dc_edges, []) if _ == "Link"]
-                length = sum(n.links.loc[i_links, "length"].mean() for l in dc_edges)
-                p_nom = min(n.links.loc[i_links, "p_nom"].sum() for l in dc_edges)
                 underwater_fraction = (
                     lengths * n.links.loc[all_links, "underwater_fraction"]
                 ).sum() / lengths.sum()
@@ -455,8 +640,6 @@ def simplify_links(
             else:
                 p_max_pu = config_lines.get("p_max_pu", 1.0)
                 lengths = n.lines.loc[all_dc_lines, "length"]
-                length = lengths.sum() / len(lengths) if len(lengths) > 0 else 0
-                p_nom = n.lines.loc[all_dc_lines, "s_nom"].min()
                 underwater_fraction = (
                     (lengths * n.lines.loc[all_dc_lines, "underwater_fraction"]).sum()
                     / lengths.sum()
@@ -986,6 +1169,11 @@ if __name__ == "__main__":
     configure_logging(snakemake)
 
     n = pypsa.Network(snakemake.input.network)
+
+    if snakemake.params.cluster_options["simplify_network"].get(
+        "drop_duplicate_branches", True
+    ):
+        n = drop_duplicate_branches(n)
 
     base_voltage = snakemake.params.electricity["base_voltage"]
     linetype = snakemake.params.config_lines["ac_types"][base_voltage]
