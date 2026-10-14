@@ -913,3 +913,21 @@ All five reruns (13447916-20) finished optimal on 9-10 Oct (47 min to 3 h 16 min
   - The six uncorrected TD30 results, including the 1 h run (job 13450571, finished 11 Oct after 14 h 57 min, not fetched), were moved to `results/europe-year-140/networks/_archive_td30_before_line_fix_2026_10_12/`.
   - Submitted as an `afterany` chain on arc: 13468229 co2-zero-td30, 13468230 co2-zero-h2-td30, 13468231 co2-zero-nh3-td30, 13468232 co2-price-nh3-td30, 13468233 co2-zero-nh3-td30-cheapbatt, then 13468234 co2-zero-nh3-td30-1h (medium, 320 GB, 36 h).
 - When the chain ends: move the local TD30 results to `results/europe-year-140/networks/_archive_td30_before_line_fix_2026_10_12/`, fetch the new ones, run `notebooks/paper_metrics.py TD30` and `notebooks/paper_facts.py`, regenerate the figures with `notebooks/paper_figures.py`, and update the paper.
+
+### Corrected TD30 results, 14 October 2026
+
+- All six jobs completed (12-13 Oct): the 3 h runs in 1-2.7 h each, all optimal; the 1 h run in 10 h 28 min at about 270 GB peak, ending "suboptimal" with primal and dual objectives 0.07 % apart. `simplify_network` dropped 477 lines (529.7 GVA) and 40 HVDC links (23.2 GW), as in the local test.
+- Fetching the networks ran at about 50 KB/s, so the analysis ran on ARC in `/data/engs-df-green-ammonia/engs2523/pypsa-earth-green-auklet/_analysis/2026-10-14/` (scripts copied there, `results` linked to the run's results). Outputs copied to `results/europe-year-140/`: `paper_metrics_TD30.csv`, `td30_extra_checks.csv` (old and new, 3 h and 1 h) and `td30_interconnection.csv`. The networks themselves stay on ARC.
+
+| | Base | Hydrogen | Ammonia | Carbon price | Cheap batteries |
+|---|---|---|---|---|---|
+| System LCOE (EUR/MWh) | 71.81 | 71.34 | 68.03 | 64.56 | 64.40 |
+| Stores built excl. hydro (TWh) | 1.43 | 3.45 | 30.52 | 0.19 | 26.28 |
+| Battery: TWh delivered, cycles/yr | 223, 163 | 155, 250 | 187, 326 | 40, 335 | 389, 124 |
+| NH3: TWh delivered, cycles/yr | - | - | 24.7, 1.5 | 0.05, 0.9 | 14.7, 1.1 |
+| H2: TWh delivered, cycles/yr | - | 13.2, 8.0 | 0.22, 65 | 0.01, 36 | 0.01, 26 |
+
+- Cross-border capacity: existing 399 GVA AC and 14.7 GW HVDC (was 709 and 109.5); optimised in the Ammonia scenario 632 GVA and 82 GW (was 847 and 126).
+- Carbon price: gas 118 TWh, 42 Mt CO2, payments 0.70 EUR/MWh. Hydro reservoirs fall by 52-56 TWh to mid-April under the zero cap. No new nuclear.
+- 1 h against 3 h (Ammonia scenario): system LCOE +0.46 %, battery energy +4.67 %, NH3 store +1.64 %, electricity from ammonia +3.73 %; same carriers and roles.
+- The paper uses these results (green-caribou-paper commit `0908d1a`).
