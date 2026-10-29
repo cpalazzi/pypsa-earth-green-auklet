@@ -31,7 +31,7 @@ TECH_COLORS = {
     "solar": "#f9d71c", "onwind": "#235ebc", "offwind-ac": "#6895dd", "offwind-dc": "#74c6f2",
     "ror": "#78d4cf", "OCGT": "#e05b5b", "CCGT": "#d35050", "coal": "#545454", "lignite": "#826a4a",
     "nuclear": "#ff8c00", "oil": "#2a2a2a", "biomass": "#baa741", "geothermal": "#ba91b1",
-    "H2 electrolysis": "#ff29d2", "CCGT H2": "#c251ae", "NH3 synthesis": "#46a88c", "CCGT NH3": "#ff69b4",
+    "H2 electrolysis": "#ff29d2", "CCGT H2": "#c251ae", "NH3 synthesis": "#46a88c", "CCGT NH3": "#1b5e4a",
     "battery charger": "#999999", "battery discharger": "#dab813",
     "H2": "#ff29d2", "NH3": "#46a88c", "battery": "#999999", "hydro": "#08306b", "hydro storage": "#08306b",
 }
@@ -127,9 +127,9 @@ def plot_soc(n, path):
         if carrier in soc:
             bottom.plot(soc.index, soc[carrier] / 1e3, color=TECH_COLORS[carrier], linewidth=0.8, label=label)
     bottom.set_ylabel("Battery and H$_2$ (GWh)")
-    for ax in (top, bottom):
+    for ax, loc in ((top, "center right"), (bottom, "upper right")):
         ax.grid(alpha=0.3)
-        ax.legend(loc="upper right", frameon=False)
+        ax.legend(loc=loc, frameon=False)
         ax.yaxis.set_major_locator(mticker.MaxNLocator(5))
     fig.autofmt_xdate()
     fig.savefig(path, dpi=200, bbox_inches="tight")

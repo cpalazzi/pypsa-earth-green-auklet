@@ -930,4 +930,14 @@ All five reruns (13447916-20) finished optimal on 9-10 Oct (47 min to 3 h 16 min
 - Cross-border capacity: existing 399 GVA AC and 14.7 GW HVDC (was 709 and 109.5); optimised in the Ammonia scenario 632 GVA and 82 GW (was 847 and 126).
 - Carbon price: gas 118 TWh, 42 Mt CO2, payments 0.70 EUR/MWh. Hydro reservoirs fall by 52-56 TWh to mid-April under the zero cap. No new nuclear.
 - 1 h against 3 h (Ammonia scenario): system LCOE +0.46 %, battery energy +4.67 %, NH3 store +1.64 %, electricity from ammonia +3.73 %; same carriers and roles.
-- The paper uses these results (green-caribou-paper commit `0908d1a`).
+- The paper uses these results (green-caribou-paper commit `a39385b`).
+
+### Upstream issues posted, 14 October 2026
+
+- Posted [pypsa-meets-earth/pypsa-earth#2072](https://github.com/pypsa-meets-earth/pypsa-earth/issues/2072) (cross-border lines, cables and HVDC links counted once per country extract) and [#2073](https://github.com/pypsa-meets-earth/pypsa-earth/issues/2073) (merged HVDC links get the summed capacity of their sections). The fixes are open as [#2076](https://github.com/pypsa-meets-earth/pypsa-earth/pull/2076) (from `fix/drop-duplicate-osm-elements`, closes #2072) and [#2077](https://github.com/pypsa-meets-earth/pypsa-earth/pull/2077) (from `fix/simplify-links-dc-capacity`, closes #2073), pushed to the fork `cpalazzi/pypsa-earth`.
+- Also posted [#2074](https://github.com/pypsa-meets-earth/pypsa-earth/issues/2074) (pumped hydro with NaN `max_hours` gets no storage) and [#2075](https://github.com/pypsa-meets-earth/pypsa-earth/issues/2075) (`hydro_capacities.csv` only covers African countries). Both point to the open PR #1707 (davide-f, since January 2026, awaiting review), which already makes both changes as part of a revision of hydro inflows, with PyPSA-Eur's rows for 30 European countries. The PR from `fix/phs-max-hours-nan` waits for the developers' answer on #2074.
+
+### technology-data Haber-Bosch cost, 29 October 2026
+
+- technology-data v0.13.2 gives `Haber-Bosch` 1460.0 EUR/kW_NH3 (`currency_year` 2015), the investment `build_costs_td2030.py` copies to `ammonia synthesis`. It is DEA sheet 5.4's 2030 value for the 100 MW plant, 1379.7 EUR/kW, which is already in 2020 EUR (DEA's August 2023 update), inflated again by HICP 2015-2020 (x1.0582); the VOM shows the same (0.0225 = 0.02127 x 1.0582). PyPSA-Earth's `load_costs` takes every row as EUR2020 and converts only currencies. The other rows the ammonia extension uses are converted correctly: CCGT 878 = DEA's 2015 value 830 x 1.0582; the NH3 pipeline from DEA (0.2127 EUR/MW/m, one update); the H2 tank and compressor from Stoeckl (2020); the DEA electrolysis override (2020).
+- Effect (ARC job 13570574, `_analysis/2026-10-29/haber_bosch_check.py`): synthesis is 6.2 GW of ammonia output in the zero-cap ammonia run and costs 1.00 bn EUR a year; the correct value would save 0.055 bn EUR a year at fixed design, 0.015 EUR/MWh or 0.02 % of system LCOE. No rerun; a technology-data issue could be drafted for Carlo's approval.
