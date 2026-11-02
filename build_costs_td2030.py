@@ -11,8 +11,12 @@ Overrides (agreed 6 Oct 2026):
 - fossil fuel prices: the market-based updates in references/fuel_cost_updates.csv.
 
 Components the ammonia extension needs, under the names add_extra_components.py
-reads. Defaults are used where technology-data has the component:
-- ammonia synthesis  <- Haber-Bosch (DEA investment, DECHEMA hydrogen and electricity inputs)
+reads. Defaults are used where technology-data has the component, except synthesis:
+- ammonia synthesis  <- DEA sheet 5.4, 500 MW plant with a dedicated ASU, as in the
+  green-caribou analytical model (30 Oct 2026). technology-data's Haber-Bosch takes
+  DEA's 100 MW plant with the 2015-2020 price update applied twice and no ASU, and
+  DECHEMA's 0.2473 MWh_el/MWh_NH3 for the compressors of a conventional plant; DEA's
+  synthesis data assume hydrogen from a pressurised electrolyser (note C).
 - ammonia storage    <- NH3 (l) storage tank incl. liquefaction (Morgan 2013)
 - CCGT H2, CCGT NH3  <- CCGT (DEA), without fuel
 - NH3 pipeline       <- DEA energy transport, NH3 line above 2 GW (not in technology-data)
@@ -54,6 +58,32 @@ def set_value(costs, tech, parameter, value, unit, source):
         value, unit, source, "Override of the technology-data default", 2020]
 
 
+def ammonia_synthesis_rows():
+    """DEA 5.4 Hydrogen to Ammonia, 500 MW plant with a dedicated ASU (2020 EUR, LHV).
+
+    The values of green_caribou/analytical_inputs.py. Per unit of total input the plant
+    takes 0.947 hydrogen and 0.053 electricity and yields 0.823 ammonia; the ASU uses
+    0.25 MWh of electricity per tonne of nitrogen, at 0.839 t of nitrogen per tonne of
+    ammonia. The investment is 0.1889 MEUR per tonne a day, converted at 5.17 MWh/t and
+    raised by 1.09 for the ASU (note F). Cost depends on plant size, not year (note J).
+    """
+    source = "Danish Energy Agency, data_sheets_for_renewable_fuels.xlsx, 5.4 Hydrogen to Ammonia, 500 MW"
+    nh3_lhv = 5.17  # MWh/t
+    hydrogen = 0.947 / 0.823
+    rows = [
+        ("investment", 0.18888710678556964e6 / (nh3_lhv * 1000 / 24) * 1.09, "EUR/kW_NH3",
+         "0.1889 MEUR per t/day, x 1.09 for a dedicated ASU (note F); per kW of ammonia at 5.17 MWh/t"),
+        ("FOM", 3.0, "%/year", "3 % of investment (note G)"),
+        ("VOM", 0.021268, "EUR/MWh_NH3", ""),
+        ("lifetime", 30.0, "years", ""),
+        ("electricity-input", 0.053 / 0.823 + 0.25 * 0.839 / nh3_lhv, "MWh_el/MWh_NH3",
+         "Synthesis 0.053 / 0.823 (hydrogen at the electrolyser's 30 bar, note C) plus ASU 0.25 MWh/t_N2"),
+        ("hydrogen-input", hydrogen, "MWh_H2/MWh_NH3", "0.947 / 0.823"),
+        ("efficiency", 1 / hydrogen, "per unit", "Ammonia out per hydrogen in, LHV"),
+    ]
+    return pd.DataFrame([row("ammonia synthesis", p, v, u, source, note) for p, v, u, note in rows])
+
+
 def main():
     costs = pd.read_csv(BASE)
     assert list(costs.columns) == COLUMNS
@@ -67,13 +97,8 @@ def main():
         set_value(costs, fuel.fuel, "fuel", float(fuel.updated_value), "EUR/MWh_th",
                   f"{fuel.methodology}; {fuel.primary_source}")
 
-    hb = costs[costs.technology == "Haber-Bosch"].set_index("parameter").value
     extras = [
-        copy_rows(costs, "Haber-Bosch", "ammonia synthesis",
-                  ["investment", "FOM", "VOM", "lifetime", "electricity-input", "hydrogen-input"],
-                  "Investment per kW of ammonia output; inputs per MWh of ammonia."),
-        pd.DataFrame([row("ammonia synthesis", "efficiency", 1 / hb["hydrogen-input"], "per unit",
-                          "1 / Haber-Bosch hydrogen-input (DECHEMA 2017)", "Ammonia out per hydrogen in, LHV")]),
+        ammonia_synthesis_rows(),
         copy_rows(costs, "NH3 (l) storage tank incl. liquefaction", "ammonia storage",
                   ["investment", "FOM", "lifetime"]),
         copy_rows(costs, "CCGT", "CCGT H2", ["investment", "FOM", "VOM", "efficiency", "lifetime"],
