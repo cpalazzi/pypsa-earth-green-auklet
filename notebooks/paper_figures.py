@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 import pypsa
 from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
-from matplotlib.patches import Circle, Wedge
+from matplotlib.patches import Circle, FancyBboxPatch, Wedge
 
 ROOT = Path(__file__).resolve().parents[1]
 OPTS = sys.argv[1] if len(sys.argv) > 1 else "Co2zero-3h-NH3-TD30"
@@ -41,6 +41,13 @@ DISPLAY = {"onwind": "onshore wind", "offwind-ac": "offshore wind (AC)", "offwin
            "ror": "run-of-river hydro", "CCGT": "gas CCGT", "OCGT": "gas OCGT", "H2 electrolysis": "electrolysis",
            "CCGT H2": "hydrogen CCGT", "NH3 synthesis": "ammonia synthesis", "CCGT NH3": "ammonia CCGT",
            "hydro storage": "hydro reservoirs and pumped hydro"}
+# Map background, and branch colours dark enough to read on it.
+LAND, SEA = "#f4f3ef", "#dde9f3"
+AC_COLOR, DC_COLOR = "#a8a8a8", "#5f8fc8"
+# Branch widths in points per MW of capacity, and the capacities shown in the line legend. AC ratings
+# (s_nom) are in MVA; the linearised power flow has no reactive power, so they act as MW limits.
+WIDTH_PER_MW = 1e-4
+AC_LEGEND_GW, DC_LEGEND_GW = (10, 30), (5, 10)
 
 
 def capacity_by_bus(n):
@@ -73,13 +80,40 @@ def capacity_by_bus(n):
     return cap[order]
 
 
+def add_size_key(ax, r_scale):
+    """Key at the top right, boxed like the colour legend: branch widths and pie sizes.
+
+    Drawn in map coordinates rather than as a legend, so the circles have the pies' scale
+    and the lines the plotted width.
+    """
+    x0, x1, y0, y1 = 17.8, 29.7, 64.4, 71.7
+    ax.add_patch(FancyBboxPatch((x0, y0), x1 - x0, y1 - y0, boxstyle="round,pad=0,rounding_size=0.4",
+                                facecolor="white", edgecolor="0.8", alpha=0.8, zorder=6))
+    rows = [("AC lines", None, 0)] + [(f"{gw} GW", AC_COLOR, gw * 1e3) for gw in AC_LEGEND_GW]
+    rows += [("DC links", None, 0)] + [(f"{gw} GW", DC_COLOR, gw * 1e3) for gw in DC_LEGEND_GW]
+    for i, (label, color, mw) in enumerate(rows):
+        y = y1 - 0.75 - i * 1.15
+        if color is None:
+            ax.text(18.2, y, label, fontsize="small", va="center", zorder=7)
+        else:
+            ax.plot([18.3, 19.4], [y, y], color=color, linewidth=WIDTH_PER_MW * mw, solid_capstyle="butt", zorder=7)
+            ax.text(19.65, y, label, fontsize="small", va="center", zorder=7)
+    y = y1 - 0.3
+    for gw in (100, 50):
+        r = np.sqrt(gw * 1e3) * r_scale
+        y -= r
+        ax.add_patch(Circle((27.6, y), r, facecolor="none", edgecolor="black", linewidth=0.8, zorder=7))
+        ax.text(27.6 - r - 0.3, y, f"{gw} GW", fontsize="small", va="center", ha="right", zorder=7)
+        y -= r + 0.35
+
+
 def plot_map(n, path):
     cap = capacity_by_bus(n)
     cap = cap[cap.sum(axis=1) > 0]
     fig, ax = plt.subplots(figsize=(10, 8), subplot_kw={"projection": ccrs.PlateCarree()})
-    n.plot(ax=ax, boundaries=(-11, 30, 34, 72), bus_sizes=0.0,
-           line_widths=1e-4 * n.lines.s_nom_opt, line_colors="gainsboro",
-           link_widths=1e-4 * n.links.p_nom_opt.where(n.links.carrier == "DC", 0.0), link_colors="lightsteelblue",
+    n.plot(ax=ax, boundaries=(-11, 30, 34, 72), bus_sizes=0.0, color_geomap={"land": LAND, "ocean": SEA},
+           line_widths=WIDTH_PER_MW * n.lines.s_nom_opt, line_colors=AC_COLOR,
+           link_widths=WIDTH_PER_MW * n.links.p_nom_opt.where(n.links.carrier == "DC", 0.0), link_colors=DC_COLOR,
            branch_components={"Line", "Link"})
     r_scale = 2.0 / np.sqrt(cap.sum(axis=1).max())
     for bus, row in cap.iterrows():
@@ -92,14 +126,8 @@ def plot_map(n, path):
             start += angle
     handles = [plt.Line2D([0], [0], marker="o", color="w", markerfacecolor=TECH_COLORS.get(c, "#aaaaaa"),
                           label=DISPLAY.get(c, c), markersize=8) for c in cap.columns if cap[c].sum() > 0]
-    ax.add_artist(ax.legend(handles=handles, loc="upper left", fontsize="small", ncol=2, frameon=True))
-    y = 70.0
-    for gw in (100, 50):
-        r = np.sqrt(gw * 1e3) * r_scale
-        y -= r
-        ax.add_patch(Circle((27.0, y), r, facecolor="none", edgecolor="black", linewidth=0.8, zorder=5))
-        ax.text(27.0 - r - 0.4, y, f"{gw} GW", fontsize=7, va="center", ha="right", zorder=5)
-        y -= r + 0.3
+    ax.legend(handles=handles, loc="upper left", fontsize="small", ncol=2, frameon=True)
+    add_size_key(ax, r_scale)
     ax.set_axis_on()
     ax.set_xlim(-11, 30)
     ax.set_ylim(34, 72)
