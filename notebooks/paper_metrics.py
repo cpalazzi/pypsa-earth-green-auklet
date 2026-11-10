@@ -1,6 +1,6 @@
 """Metrics quoted in the green-caribou paper's PyPSA-Earth comparison (Tables 6-7, Section 3.5).
 
-Usage: .venv/bin/python notebooks/paper_metrics.py [TD30|DEA30]
+Usage: .venv/bin/python notebooks/paper_metrics.py [TD30-Caverns|TD30|DEA30]
 
 Definitions, as in the paper:
 - System cost: the objective plus objective_constant (annualised cost of the existing capacity of
@@ -10,7 +10,8 @@ Definitions, as in the paper:
 - Lost load: energy from load-shedding generators, reported separately with its buses.
 - Generation capacity: optimised generator capacity, excluding load-shedding pseudo-generators
   (feasibility slack; the September Table 6 counted their 0.64 TW by mistake).
-- Storage capacity: optimised store energy plus storage units (p_nom_opt * max_hours).
+- Storage capacity: optimised store energy plus storage units (p_nom_opt * max_hours); hydrogen
+  caverns are storage units, reported separately as H2_cavern.
 - Electricity delivered by a carrier: AC output of its reconversion links (battery discharger,
   CCGT NH3, CCGT H2).
 - Cycling frequency f: energy discharged from the carrier's stores over the year divided by their
@@ -23,9 +24,9 @@ import pandas as pd
 import pypsa
 
 RESULTS = Path(__file__).resolve().parents[1] / "results/europe-year-140/networks"
-SET = sys.argv[1] if len(sys.argv) > 1 else "TD30"
+SET = sys.argv[1] if len(sys.argv) > 1 else "TD30-Caverns"
 SCENARIOS = {
-    "co2_zero": f"Co2zero-3h-{SET}",
+    "co2_zero": f"Co2zero-3h-{SET.removesuffix('-Caverns')}",  # no hydrogen, so no caverns
     "co2_zero_h2": f"Co2zero-3h-H2-{SET}",
     "co2_zero_nh3": f"Co2zero-3h-NH3-{SET}",
     "co2_price_nh3": f"Co2nocap-Ep60-3h-NH3-{SET}",
@@ -70,6 +71,11 @@ def metrics(n):
         if carrier in soc:
             row[f"soc_min_{carrier}_GWh"] = soc[carrier].min() / 1e3
             row[f"soc_max_{carrier}_GWh"] = soc[carrier].max() / 1e3
+    caverns = su.index[su.carrier == "H2 cavern"]
+    if len(caverns):
+        cap = (su.p_nom_opt[caverns] * su.max_hours[caverns]).sum()
+        row["capacity_H2_cavern_GWh"] = cap / 1e3
+        row["cycles_H2_cavern"] = n.storage_units_t.p_store[caverns].mul(w, axis=0).sum().sum() / cap if cap > 0 else float("nan")
     return row
 
 

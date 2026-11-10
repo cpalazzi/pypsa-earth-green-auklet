@@ -22,10 +22,10 @@ ROOT = Path(__file__).resolve().parents[1]
 RESULTS = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "results/europe-year-140/networks"
 SCENARIOS = {
     "base": "Co2zero-3h-TD30",
-    "base+h2": "Co2zero-3h-H2-TD30",
-    "base+h2+nh3": "Co2zero-3h-NH3-TD30",
-    "co2_price": "Co2nocap-Ep60-3h-NH3-TD30",
-    "cheap_batteries": "Co2zero-3h-NH3-TD30-CheapBatt",
+    "base+h2": "Co2zero-3h-H2-TD30-Caverns",
+    "base+h2+nh3": "Co2zero-3h-NH3-TD30-Caverns",
+    "co2_price": "Co2nocap-Ep60-3h-NH3-TD30-Caverns",
+    "cheap_batteries": "Co2zero-3h-NH3-TD30-Caverns-CheapBatt",
 }
 # store carrier: (charging link carrier, discharging link carrier)
 STORE_LINKS = {
@@ -60,12 +60,31 @@ def store_facts(n, carrier):
     }
 
 
+def cavern_facts(n):
+    w = n.snapshot_weightings.generators
+    su = n.storage_units
+    caverns = su.index[su.carrier == "H2 cavern"]
+    energy = (su.p_nom_opt[caverns] * su.max_hours[caverns]).sum()
+    if energy <= 1e-3:
+        return {}
+    soc = n.storage_units_t.state_of_charge[caverns].sum(axis=1)
+    built = su.p_nom_opt[caverns] * su.max_hours[caverns]
+    return {
+        "H2_cavern_energy_TWh": energy / 1e6,
+        "H2_cavern_cycles": n.storage_units_t.p_store[caverns].mul(w, axis=0).sum().sum() / energy,
+        "H2_cavern_nodes_above_1GWh": int((built > 1e3).sum()),
+        "H2_cavern_soc_min_date": soc.idxmin().strftime("%d %b"),
+        "H2_cavern_soc_max_date": soc.idxmax().strftime("%d %b"),
+    }
+
+
 def facts(n):
     w = n.snapshot_weightings.generators
     demand = n.loads_t.p_set.mul(w, axis=0).sum().sum()
     row = {"demand_TWh": demand / 1e6}
     for carrier in STORE_LINKS:
         row.update(store_facts(n, carrier))
+    row.update(cavern_facts(n))
 
     # electricity delivered by ammonia CCGTs, by month
     idx = n.links.index[n.links.carrier == "CCGT NH3"]
