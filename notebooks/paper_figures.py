@@ -1,7 +1,7 @@
 """PyPSA-Earth figures for the green-caribou paper: capacity map and storage state of charge.
 
 Usage: .venv/bin/python notebooks/paper_figures.py [OPTS] [OUTDIR]
-  OPTS   opts wildcard of the solved network (default Co2zero-3h-NH3-TD30)
+  OPTS   opts wildcard of the solved network (default Co2zero-3h-NH3-TD30-Caverns)
   OUTDIR folder for the PNGs (default ../green-caribou-paper/paper/images)
 
 The map follows notebook 01 (capacity by bus, output basis). It leaves out load-shedding
@@ -23,7 +23,7 @@ from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
 from matplotlib.patches import Circle, FancyBboxPatch, Wedge
 
 ROOT = Path(__file__).resolve().parents[1]
-OPTS = sys.argv[1] if len(sys.argv) > 1 else "Co2zero-3h-NH3-TD30"
+OPTS = sys.argv[1] if len(sys.argv) > 1 else "Co2zero-3h-NH3-TD30-Caverns"
 OUTDIR = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT.parents[1] / "green-caribou-paper/paper/images"
 NAME = "co2_zero_nh3"
 
@@ -72,7 +72,7 @@ def capacity_by_bus(n):
     links["bus"] = links.apply(ac_bus, axis=1)
     links = links.dropna(subset=["bus"])
     links["out"] = links.p_nom_opt * links.efficiency.fillna(1.0)
-    su = n.storage_units.assign(carrier="hydro storage")
+    su = n.storage_units[n.storage_units.carrier != "H2 cavern"].assign(carrier="hydro storage")
     cap = pd.concat([cap, links.groupby(["bus", "carrier"]).out.sum().unstack(fill_value=0.0),
                      su.groupby(["bus", "carrier"]).p_nom_opt.sum().unstack(fill_value=0.0)])
     cap = cap.groupby(level=0).sum().fillna(0.0)
@@ -143,18 +143,22 @@ def plot_map(n, path):
 def plot_soc(n, path):
     soc = n.stores_t.e.T.groupby(n.stores.carrier).sum().T
     fig, (top, bottom) = plt.subplots(2, 1, figsize=(12, 6), sharex=True, gridspec_kw={"height_ratios": [3, 2]})
-    # Seasonal stores on one axis: hydro reservoirs (storage units) and ammonia tanks.
+    # Stores in TWh on one axis: hydro reservoirs and hydrogen caverns (storage units) and ammonia tanks.
     hydro = n.storage_units.index[n.storage_units.carrier == "hydro"]
     if len(hydro):
         top.plot(soc.index, n.storage_units_t.state_of_charge[hydro].sum(axis=1) / 1e6,
                  color=TECH_COLORS["hydro"], linewidth=1.4, label="Hydro reservoirs")
+    caverns = n.storage_units.index[n.storage_units.carrier == "H2 cavern"]
+    if len(caverns):
+        top.plot(soc.index, n.storage_units_t.state_of_charge[caverns].sum(axis=1) / 1e6,
+                 color=TECH_COLORS["H2"], linewidth=1.4, label="H$_2$ caverns")
     if "NH3" in soc:
         top.plot(soc.index, soc["NH3"] / 1e6, color=TECH_COLORS["NH3"], linewidth=1.4, label="NH$_3$")
-    top.set_ylabel("Seasonal stores (TWh)")
-    for carrier, label in (("battery", "Battery"), ("H2", "H$_2$")):
+    top.set_ylabel("Stores (TWh)")
+    for carrier, label in (("battery", "Battery"), ("H2", "H$_2$ tanks")):
         if carrier in soc:
             bottom.plot(soc.index, soc[carrier] / 1e3, color=TECH_COLORS[carrier], linewidth=0.8, label=label)
-    bottom.set_ylabel("Battery and H$_2$ (GWh)")
+    bottom.set_ylabel("Stores (GWh)")
     for ax, loc in ((top, "center right"), (bottom, "upper right")):
         ax.grid(alpha=0.3)
         ax.legend(loc=loc, frameon=False)
