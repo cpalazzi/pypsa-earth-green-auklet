@@ -131,6 +131,28 @@ def attach_stores(n, costs, config):
             capital_cost=costs.at["hydrogen storage tank", "capital_cost"],
         )
 
+        # Salt caverns, in scenarios that list them: a store on the tank's bus, filled through
+        # the same compressor, up to each node's potential. DEA limits flow to about 10 % of
+        # capacity a day, so energy and power keep a fixed ratio, max_hours.
+        h2_caverns = elec_opts.get("h2_caverns")
+        if h2_caverns:
+            potentials = pd.read_csv(h2_caverns["potentials"], index_col=0).e_nom_max_MWh
+            cavern = costs.loc["hydrogen storage underground"]
+            max_hours = h2_caverns["max_hours"]
+            n.add("Carrier", "H2 cavern")
+            n.madd(
+                "StorageUnit",
+                potentials.index + " H2 cavern",
+                bus=potentials.index + " H2 store",
+                carrier="H2 cavern",
+                p_nom_extendable=True,
+                p_nom_max=potentials.values / max_hours,
+                max_hours=max_hours,
+                cyclic_state_of_charge=True,
+                capital_cost=max_hours
+                * (cavern.capital_cost + h2_caverns["fixed_opex"] * cavern.investment),
+            )
+
         n.madd(
             "Link",
             h2_store_buses_i + " compressor",

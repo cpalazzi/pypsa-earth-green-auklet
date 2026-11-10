@@ -1,0 +1,152 @@
+# SPDX-FileCopyrightText:  PyPSA-Earth and PyPSA-Eur Authors
+#
+# SPDX-License-Identifier: CC0-1.0
+
+# Technology-data runs (6 Oct 2026): PyPSA-Earth default technology-data v0.13.2
+# costs, with DEA electrolysis, nuclear at 6504 EUR/kW, updated fuel prices and the
+# ammonia components added by build_costs_td2030.py. Hydrogen tanks have an
+# explicit compressor. Discount rate is the PyPSA-Earth default.
+#
+# Hydrogen salt caverns at nodes with salt, from build_h2_cavern_potentials.py. Technology-data's
+# cavern investment and life; fixed OpEx from DEA sheet 151c, 2.13 % of CapEx, as in the green-caribou
+# analytical model (technology-data has 0). Flow limited both ways to about 10 % of capacity a day,
+# 240 hours (DEA catalogue, chapter 151: "Maximum flowrates in the boreholes govern the filling and
+# emptying of the cavern. Maximum withdrawal rates are in the order of 10 % of the storage capacity
+# per day").
+
+version: 0.8.0
+tutorial: false
+
+logging:
+  level: INFO
+  format: "%(levelname)s:%(name)s:%(message)s"
+
+results_dir: results/
+summary_dir: results/
+
+foresight: overnight
+
+countries:
+  - DE
+  - FR
+  - GB
+  - IT
+  - ES
+  - PL
+  - NL
+  - BE
+  - CZ
+  - RO
+  - SE
+  - PT
+  - GR
+  - HU
+  - AT
+  - BG
+  - DK
+  - FI
+  - SK
+  - IE
+  - HR
+  - LT
+  - SI
+  - LV
+  - EE
+  - CY
+  - LU
+  - MT
+  - "NO"
+  - CH
+  - RS
+  - BA
+  - AL
+  - MK
+  - ME
+
+enable:
+  retrieve_databundle: false
+  retrieve_databundle_sector: false
+  retrieve_cost_data: false
+  download_osm_data: true
+  download_global_buildings: false
+  build_natura_raster: false
+  build_cutout: false
+  progress_bar: true
+  custom_busmap: false
+
+custom_rules: []
+
+run:
+  name: "europe-year-140"
+  sector_name: ""
+  shared_cutouts: true
+  allow_scenario_failure: false
+
+scenario:
+  simpl: [""]
+  ll: ["copt"]
+  clusters: [140]
+  opts: [Co2zero-3h-NH3-TD30-Caverns]
+  planning_horizons:
+  - 2030
+  sopts:
+  - "8760h"
+  demand:
+  - "AB"
+
+snapshots:
+  start: "2013-01-01"
+  end: "2014-01-01"
+  inclusive: "left"
+
+co2_budget:
+  enable: false
+  override_co2opt: true
+  co2base_value: co2limit
+
+costs:
+  file: "data/costs_td2030.csv"
+
+electricity:
+  co2limit: 1.0e1
+  max_hours:
+    H2: 4380
+    NH3: 4380
+  extendable_carriers:
+    Generator: [solar, onwind, offwind-ac, offwind-dc, OCGT, CCGT, nuclear]
+    Store: [battery, H2, NH3]
+    Link: [CCGT H2, H2 pipeline, CCGT NH3, NH3 pipeline]
+  pipeline_submarine_cost_factor: 2.0
+  h2_caverns:
+    potentials: data/h2_cavern_potentials_s_140.csv
+    fixed_opex: 0.0213
+    max_hours: 240
+
+atlite:
+  nprocesses: 4
+  cutouts:
+    cutout-2013-era5:
+      module: era5
+      dx: 0.3
+      dy: 0.3
+
+# NH3 pipelines pump liquid ammonia: about 0.1 % of the energy carried per 1000 km
+# (DEA energy transport, as in the analytical model).
+sector:
+  transmission_efficiency:
+    NH3 pipeline:
+      efficiency_per_1000km: 1
+      compression_per_1000km: 0.001
+
+# Connect isolated fragments of the OSM network (below 20 % of national load) to the nearest
+# backbone bus of the same country. Without this, 27 single-bus islands remained, and four of
+# them shed about 3 TWh a year at the 100 EUR/kWh lost-load price. Malta and Cyprus stay islands.
+cluster_options:
+  simplify_network:
+    s_threshold_fetch_isolated: 0.2
+
+# European reservoir energy by country (PyPSA-Eur data/hydro_capacities.csv); the global
+# table that PyPSA-Earth ships has no European rows, so reservoirs fell back to 6 h.
+renewable:
+  hydro:
+    hydro_capacities_extra: data/hydro_capacities_europe.csv
