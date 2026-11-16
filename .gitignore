@@ -23,3 +23,6 @@ data_remote/
 # Editor
 .vscode/
 *.code-workspace
+
+# Third-party papers, linked from Zotero storage; not ours to publish
+references/*.pdf
