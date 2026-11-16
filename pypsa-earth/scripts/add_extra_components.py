@@ -298,7 +298,9 @@ def attach_ammonia_stores(n, costs, config):
       bus2 = AC bus  (electricity consumed for Haber-Bosch)
 
     The cost data give hydrogen-input and electricity-input per MWh of ammonia
-    (LHV); technology-data's Haber-Bosch takes 1.1484 MWh_H2 + 0.2473 MWh_el.
+    (LHV). The TD30 cost files (data/costs_td2030*.csv) use the Danish Energy
+    Agency's 500 MW hydrogen-to-ammonia plant: 1.1507 MWh_H2 and 0.1050 MWh_el,
+    the electricity covering synthesis and air separation.
     On PyPSA's per-unit-H2 basis:
       efficiency  = 1 / hydrogen-input                    (NH3 out per H2 in)
       efficiency2 = -electricity-input / hydrogen-input   (AC drawn per H2 in)
