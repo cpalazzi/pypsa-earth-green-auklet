@@ -3,6 +3,8 @@
 ## Purpose
 This repo is a working fork of `pypsa-earth` focused on European electricity system modeling with proper version control and standardized workflows. This document is for maintainers and AI agents: decisions, conventions, testing plan, and troubleshooting. We do not preserve backward compatibility in docs or code during active development; any high-level historical notes or function descriptions should be added here.
 
+Notes that are not for publication, such as drafted replies and contacts with maintainers, are kept locally in `references/DEVELOPMENT_NOTES_PRIVATE.md`, which git ignores; read it with this file.
+
 ## Repository Structure
 - `pypsa-earth/` - Main PyPSA-Earth model code (submodule/fork)
 - `arc/` - ARC cluster job submission scripts

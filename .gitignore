@@ -26,3 +26,6 @@ data_remote/
 
 # Third-party papers, linked from Zotero storage; not ours to publish
 references/*.pdf
+
+# Private development notes, kept off GitHub
+references/DEVELOPMENT_NOTES_PRIVATE.md
