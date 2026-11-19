@@ -793,6 +793,36 @@ rule add_extra_components:
         "scripts/add_extra_components.py"
 
 
+rule build_ammonia_demand:
+    params:
+        ammonia_demand=config["ammonia_demand"],
+        countries=config["countries"],
+    input:
+        plants="data/ammonia_plants_europe.csv",
+        usgs="data/USGS_ammonia_dataset.xlsx",
+        regions="resources/"
+        + RDIR
+        + "bus_regions/regions_onshore_elec_s{simpl}_{clusters}.geojson",
+    output:
+        "resources/" + RDIR + "ammonia_demand_elec_s{simpl}_{clusters}.csv",
+    log:
+        "logs/" + RDIR + "build_ammonia_demand_s{simpl}_{clusters}.log",
+    threads: 1
+    resources:
+        mem_mb=2000,
+    script:
+        "scripts/build_ammonia_demand.py"
+
+
+def input_ammonia_demand(w):
+    """The node demand file, only for opts with an ammonia demand (NH3dem, NH3demG)."""
+    if any(o.startswith("NH3dem") for o in w.opts.split("-")):
+        return (
+            f"resources/{RDIR}ammonia_demand_elec_s{w.simpl}_{w.clusters}.csv"
+        )
+    return []
+
+
 rule prepare_network:
     params:
         links=config["links"],
@@ -800,9 +830,11 @@ rule prepare_network:
         s_max_pu=config["lines"]["s_max_pu"],
         electricity=config["electricity"],
         costs=config["costs"],
+        ammonia_demand=config["ammonia_demand"],
     input:
         "networks/" + RDIR + "elec_s{simpl}_{clusters}_ec.nc",
         tech_costs=COSTS,
+        ammonia_demand=input_ammonia_demand,
     output:
         "networks/" + RDIR + "elec_s{simpl}_{clusters}_ec_l{ll}_{opts}.nc",
     log:

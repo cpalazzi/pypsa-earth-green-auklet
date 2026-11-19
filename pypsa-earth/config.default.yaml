@@ -394,6 +394,13 @@ renewable:
     extendable: true
     csp_model: advanced # simple or advanced
 
+# auklet: constant ammonia demand at each node's NH3 bus, for the opts NH3dem (met by synthesis or by
+# existing grey plants) and NH3demG (synthesis only); scripts/build_ammonia_demand.py and prepare_network.py
+ammonia_demand:
+  years: [2019, 2020, 2021] # USGS production years averaged, before the gas prices of 2022 cut production
+  lhv_GJ_per_t: 18.6 # lower heating value of ammonia (IEA Ammonia Technology Roadmap)
+  grey_efficiency: 0.5794 # MWh of ammonia per MWh of natural gas, feedstock and fuel: 18.6 / (21.0 + 11.1) GJ/t, IEA BAT steam methane reforming
+
 # TODO: Needs to be adjusted for Africa.
 # Costs Configuration
 costs:

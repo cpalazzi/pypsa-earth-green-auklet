@@ -185,6 +185,61 @@ def add_emission_prices(n, emission_prices={"co2": 0.0}, exclude_co2=False):
     n.storage_units["marginal_cost"] += su_ep
 
 
+def add_ammonia_demand(n, demand_file, costs, grey, grey_efficiency):
+    """
+    Add a constant ammonia demand at each node's NH3 bus (opts NH3dem and NH3demG).
+
+    The demand (``p_set`` in MW of ammonia, from ``build_ammonia_demand``) is met by synthesis and
+    stores. With ``grey`` (NH3dem), each node with a demand also has an existing grey plant (steam
+    methane reforming and Haber-Bosch) as a generator at its NH3 bus: its capacity equals the
+    demand, it is not extendable and has no capital cost, like the existing gas plants. Its
+    marginal cost is the gas price over ``grey_efficiency`` and its carrier has the CO2 intensity
+    of gas, so that ``Ep`` prices its CO2 and a CO2 cap counts it.
+    """
+    demand = pd.read_csv(demand_file, index_col=0)["p_set"]
+    demand = demand[demand > 0]
+    buses = demand.index + " NH3"
+    missing = buses.difference(n.buses.index)
+    if not missing.empty:
+        raise ValueError(f"Ammonia demand at nodes without an NH3 bus: {list(missing)}")
+    n.madd(
+        "Load",
+        demand.index,
+        suffix=" NH3 demand",
+        bus=buses,
+        carrier="NH3",
+        p_set=demand.values,
+    )
+    logger.info(
+        f"Added a constant ammonia demand of {demand.sum():.0f} MW "
+        f"({demand.sum() * 8760 / 1e6:.1f} TWh a year) at {len(demand)} NH3 buses"
+    )
+    if not grey:
+        return
+    n.add(
+        "Carrier",
+        "grey ammonia",
+        co2_emissions=costs.at["gas", "co2_emissions"],
+        nice_name="Grey ammonia",
+    )
+    n.madd(
+        "Generator",
+        demand.index,
+        suffix=" grey ammonia",
+        bus=buses,
+        carrier="grey ammonia",
+        p_nom=demand.values,
+        p_nom_extendable=False,
+        efficiency=grey_efficiency,
+        marginal_cost=costs.at["gas", "fuel"] / grey_efficiency,
+        capital_cost=0.0,
+    )
+    logger.info(
+        f"Added existing grey ammonia plants of {demand.sum():.0f} MW at an efficiency of "
+        f"{grey_efficiency} and {costs.at['gas', 'fuel'] / grey_efficiency:.1f} EUR/MWh before CO2"
+    )
+
+
 def set_line_s_max_pu(n, s_max_pu):
     n.lines["s_max_pu"] = s_max_pu
     logger.info(f"N-1 security margin of lines set to {s_max_pu}")
@@ -446,6 +501,16 @@ if __name__ == "__main__":
                 for c in n.iterate_components(comps):
                     sel = c.df.carrier.str.contains(carrier)
                     c.df.loc[sel, attr] *= factor
+
+    # Before the emission prices, so that Ep reaches the grey ammonia plants.
+    if "NH3dem" in opts or "NH3demG" in opts:
+        add_ammonia_demand(
+            n,
+            snakemake.input.ammonia_demand,
+            costs,
+            grey="NH3dem" in opts,
+            grey_efficiency=snakemake.params.ammonia_demand["grey_efficiency"],
+        )
 
     for o in opts:
         if "Ep" in o:
