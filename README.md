@@ -14,7 +14,7 @@ The fork is kept so that the papers' runs can be reproduced; it is not maintaine
 - Ammonia: synthesis (Haber-Bosch, with its electricity use), liquid ammonia tanks, ammonia CCGTs (combined-cycle gas turbines that burn ammonia) and ammonia pipelines between nodes, in `pypsa-earth/scripts/add_extra_components.py`.
 - Hydrogen: hydrogen-to-power through hydrogen CCGTs in place of fuel cells, hydrogen pipelines with a cost factor for submarine sections, and salt caverns at nodes with salt (`build_h2_cavern_potentials.py`).
 - Nuclear capacity can be extended.
-- The cost file is set per scenario (`costs.file`). The 2030 cost sets come from the Danish Energy Agency's technology catalogues (`pypsa-earth/data/costs_dea2030.csv`) and from technology-data (`build_costs_td2030.py`).
+- The cost file is set per scenario (`costs.file`). The 2030 cost sets come from the Danish Energy Agency's technology catalogues (`pypsa-earth/data/costs_dea2030.csv`) and from technology-data (`build_costs_td.py`).
 - Fixes for pumped-hydro storage durations, hydro capacities, duplicated OpenStreetMap lines and links, and the ratings of merged HVDC (high-voltage direct current) links, reported upstream in issues #2072 to #2075.
 
 [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md) records every change and the green-caribou runs. The scenario configs are in `pypsa-earth/configs/scenarios/`. The green-caribou runs use the configs whose names contain `td30`, except the three `co2-price-sweep` configs, which hold the follow-up study's carbon-price runs.
@@ -418,7 +418,7 @@ This fork does not take contributions. Report problems with PyPSA-Earth, and pro
 ## Licence
 
 - PyPSA-Earth's files keep their licences: AGPL-3.0-or-later (the GNU Affero General Public License) for the code, CC-BY-4.0 for data and documentation, and CC0-1.0 for the configuration files, as set out in `pypsa-earth/REUSE.toml` and `pypsa-earth/LICENSES/`.
-- The files this fork adds outside `pypsa-earth/`, such as `arc/`, `notebooks/` and `build_costs_td2030.py`, are released under AGPL-3.0-or-later; see [LICENSE](LICENSE).
+- The files this fork adds outside `pypsa-earth/`, such as `arc/`, `notebooks/` and `build_costs_td.py`, are released under AGPL-3.0-or-later; see [LICENSE](LICENSE).
 - The Danish Energy Agency data sheets in `references/dea_data_sheets/` keep the agency's terms.
 
 ## Acknowledgments

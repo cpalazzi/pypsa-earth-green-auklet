@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Build the PyPSA-Earth cost files for the technology-data runs.
+"""Build the PyPSA-Earth cost files for the technology-data runs, with 2030 and 2050 inputs.
 
-Base: PyPSA-Earth's default technology-data v0.13.2 costs for 2030 (EUR2020),
-as retrieved to resources/europe-year-140/costs_2030.csv.
+Base: PyPSA-Earth's default technology-data v0.13.2 costs for each year (EUR2020), as
+retrieved to resources/europe-year-140/costs_2030.csv; costs_2050.csv is outputs/costs_2050.csv
+of the same version (downloaded 19 Nov 2026).
 
-Overrides (agreed 6 Oct 2026):
-- electrolysis investment: DEA AEC 1 GW, 500 EUR/kW_e (default 1500 is a single
-  IEA e-fuels / private-communication value). Efficiency 0.6217 LHV is the default.
+Overrides (agreed 6 Oct 2026), at each year's value:
+- electrolysis investment: DEA AEC 1 GW, 500 EUR/kW_e in 2030 and 275 EUR/kW_e in 2050, as in
+  the green-caribou analytical model (default 1500 is a single IEA e-fuels /
+  private-communication value). The efficiency is the technology-data default.
 - nuclear investment: 6504 EUR/kW (DIW DataDoc, as discussed in the paper).
 - fossil fuel prices: the market-based updates in references/fuel_cost_updates.csv.
 
@@ -24,15 +26,23 @@ Hydrogen pipelines use technology-data's own 'H2 pipeline' entry (Welder et al.)
 The hydrogen tank is technology-data's "hydrogen storage tank type 1", which
 load_costs renames; its compressor is "hydrogen storage compressor".
 
-Writes pypsa-earth/data/costs_td2030.csv and costs_td2030_cheapbatt.csv (battery
-storage investment cut tenfold, the paper's stress test).
+The 2050 inputs follow green-caribou-paper's analytical model (19 Nov 2026): each source's
+2050 central estimate, or its 2030 value where it has none (nuclear, fuel prices, ammonia
+synthesis, NH3 pipeline), and battery storage investment at one-tenth of its 2030 value.
+
+Writes pypsa-earth/data/costs_td2030.csv, costs_td2030_cheapbatt.csv (battery storage
+investment cut tenfold, the paper's stress test) and costs_td2050.csv.
 """
 from pathlib import Path
 
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent / "pypsa-earth"
-BASE = ROOT / "resources/europe-year-140/costs_2030.csv"
+BASE = ROOT / "resources/europe-year-140/costs_{year}.csv"
+ELECTROLYSIS = {  # DEA AEC 1 GW specific investment, EUR/kW_e
+    2030: 500.0,
+    2050: 275.0,
+}
 FUELS = ROOT.parent / "references/fuel_cost_updates.csv"
 
 COLUMNS = ["technology", "parameter", "value", "unit", "source", "further description", "currency_year"]
@@ -84,12 +94,13 @@ def ammonia_synthesis_rows():
     return pd.DataFrame([row("ammonia synthesis", p, v, u, source, note) for p, v, u, note in rows])
 
 
-def main():
-    costs = pd.read_csv(BASE)
+def build(year):
+    """The cost table with technology-data's values for ``year`` and the overrides above."""
+    costs = pd.read_csv(str(BASE).format(year=year))
     assert list(costs.columns) == COLUMNS
 
-    set_value(costs, "electrolysis", "investment", 500.0, "EUR/kW_e",
-              "Danish Energy Agency, data_sheets_for_renewable_fuels.xlsx, 1.1 AEC 1 GW, 2030 specific investment")
+    set_value(costs, "electrolysis", "investment", ELECTROLYSIS[year], "EUR/kW_e",
+              f"Danish Energy Agency, data_sheets_for_renewable_fuels.xlsx, 1.1 AEC 1 GW, {year} specific investment")
     set_value(costs, "nuclear", "investment", 6504.0, "EUR/kW_e",
               "DIW DataDoc http://hdl.handle.net/10419/80348 [HICP 2013 to 2020]")
     fuels = pd.read_csv(FUELS)
@@ -116,15 +127,31 @@ def main():
     ]
     costs = pd.concat([costs, *extras], ignore_index=True)
     assert not costs.duplicated(["technology", "parameter"]).any()
+    return costs
 
+
+def battery_storage_at_tenth(costs, costs_2030, note):
+    """Battery storage investment at one-tenth of its 2030 value."""
+    costs = costs.copy()
+    mask = (costs.technology == "battery storage") & (costs.parameter == "investment")
+    mask_2030 = (costs_2030.technology == "battery storage") & (costs_2030.parameter == "investment")
+    costs.loc[mask, "value"] = costs_2030.loc[mask_2030, "value"].item() / 10
+    costs.loc[mask, "further description"] = note
+    return costs
+
+
+def main():
+    costs_2030 = build(2030)
     out = ROOT / "data/costs_td2030.csv"
-    costs.to_csv(out, index=False)
-    cheap = costs.copy()
-    mask = (cheap.technology == "battery storage") & (cheap.parameter == "investment")
-    cheap.loc[mask, "value"] /= 10
-    cheap.loc[mask, "further description"] = "Tenfold cut of the technology-data default (stress test)"
+    costs_2030.to_csv(out, index=False)
+    print(out, len(costs_2030), "rows")
+    cheap = battery_storage_at_tenth(costs_2030, costs_2030, "Tenfold cut of the technology-data default (stress test)")
     cheap.to_csv(ROOT / "data/costs_td2030_cheapbatt.csv", index=False)
-    print(out, len(costs), "rows")
+    costs_2050 = battery_storage_at_tenth(
+        build(2050), costs_2030, "One-tenth of the 2030 value, as in the green-caribou analytical model's 2050 inputs")
+    out = ROOT / "data/costs_td2050.csv"
+    costs_2050.to_csv(out, index=False)
+    print(out, len(costs_2050), "rows")
 
 
 if __name__ == "__main__":

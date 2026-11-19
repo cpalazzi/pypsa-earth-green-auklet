@@ -4,7 +4,7 @@
 
 # Technology-data runs (6 Oct 2026): PyPSA-Earth default technology-data v0.13.2
 # costs, with DEA electrolysis, nuclear at 6504 EUR/kW, updated fuel prices and the
-# ammonia components added by build_costs_td2030.py. Hydrogen tanks have an
+# ammonia components added by build_costs_td.py. Hydrogen tanks have an
 # explicit compressor. Discount rate is the PyPSA-Earth default.
 
 version: 0.8.0
