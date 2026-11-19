@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"name": "custom_cables",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "id": -1, "Type": "way", "Region": "MT", "refs": null, "tags.cables": "9", "tags.circuits": "3", "tags.frequency": "50", "tags.layer": "-1", "tags.location": "underground", "tags.name": "Maghtab-Kappara 132 kV", "tags.operator": "Enemalta", "tags.operator:wikidata": null, "tags.power": "cable", "tags.ref": null, "tags.source": "custom: three 132 kV circuits in the Maghtab-Kappara tunnel, missing from OSM (auklet DEVELOPMENT_NOTES.md, 19 Nov 2026)", "tags.voltage": "132000", "other_tags": null }, "geometry": { "type": "LineString", "coordinates": [ [ 14.44208, 35.93909 ], [ 14.48733, 35.90557 ] ] } }
+]
+}
