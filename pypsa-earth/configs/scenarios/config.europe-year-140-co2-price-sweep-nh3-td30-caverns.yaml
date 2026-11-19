@@ -4,7 +4,7 @@
 
 # Technology-data runs (6 Oct 2026): PyPSA-Earth default technology-data v0.13.2
 # costs, with DEA electrolysis, nuclear at 6504 EUR/kW, updated fuel prices and the
-# ammonia components added by build_costs_td2030.py. Hydrogen tanks have an
+# ammonia components added by build_costs_td.py. Hydrogen tanks have an
 # explicit compressor. Discount rate is the PyPSA-Earth default.
 #
 # Hydrogen salt caverns at nodes with salt, from build_h2_cavern_potentials.py. Technology-data's
@@ -17,9 +17,8 @@
 # tartan-tortoise carbon-price sweep (13 Nov 2026): config.europe-year-140-co2-zero-nh3-td30-caverns.yaml
 # with no CO2 cap and the carbon price, in EUR/t, of the Ep option in each opts value. Job 02
 # solves the networks one after another.
-# 60 EUR/t is left out: green-caribou's co2_price run has it
-# (config.europe-year-140-co2-price-nh3-td30-caverns.yaml), and job 02 deletes the results
-# matching its opts before solving.
+# 60 EUR/t is included since the Malta link (19 Nov 2026): green-caribou's co2_price run, which has
+# the same opts, is archived before the reruns, because job 02 deletes the results matching its opts.
 
 version: 0.8.0
 tutorial: false
@@ -95,6 +94,7 @@ scenario:
   clusters: [140]
   opts:
   - Co2nocap-Ep0-3h-NH3-TD30-Caverns
+  - Co2nocap-Ep60-3h-NH3-TD30-Caverns
   - Co2nocap-Ep150-3h-NH3-TD30-Caverns
   - Co2nocap-Ep300-3h-NH3-TD30-Caverns
   - Co2nocap-Ep500-3h-NH3-TD30-Caverns
