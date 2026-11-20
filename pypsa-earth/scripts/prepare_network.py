@@ -240,19 +240,34 @@ def add_ammonia_demand(n, demand_file, costs, grey, grey_efficiency):
     )
 
 
-def set_gas_price(n, price, costs):
-    """
-    Set the natural gas price, in EUR per MWh of gas, for the opts Gas<price> (for example Gas80).
+# Fuel of each fossil-fuelled generator carrier, as a technology of the cost file
+FOSSIL_FUEL = {
+    "OCGT": "gas",
+    "CCGT": "gas",
+    "grey ammonia": "gas",
+    "coal": "coal",
+    "lignite": "lignite",
+    "oil": "oil",
+}
 
-    The marginal cost of every generator that burns natural gas (OCGT, CCGT and the grey
-    ammonia plants of NH3dem) changes by the change in gas price over its efficiency, from the
-    cost file's price. It runs before ``Ep``, which adds the carbon price on top.
+
+def scale_fossil_fuel_cost(n, factor, costs):
     """
-    base = costs.at["gas", "fuel"]
-    gas = n.generators.index[n.generators.carrier.isin(["OCGT", "CCGT", "grey ammonia"])]
-    n.generators.loc[gas, "marginal_cost"] += (price - base) / n.generators.efficiency[gas]
+    Multiply the fuel cost of every fossil-fuelled generator by ``factor`` (opts Fossil<factor>).
+
+    The generators that burn gas (OCGT, CCGT and the grey ammonia plants of NH3dem), coal,
+    lignite or oil pay the cost file's fuel price over their efficiency; that part of their
+    marginal cost is multiplied by ``factor``, and the variable O&M is unchanged. It runs before
+    ``Ep``, which adds the carbon price on top.
+    """
+    fuel = n.generators.carrier.map(FOSSIL_FUEL).dropna()
+    price = fuel.map(costs["fuel"])
+    efficiency = n.generators.efficiency[fuel.index]
+    n.generators.loc[fuel.index, "marginal_cost"] += (factor - 1.0) * price / efficiency
     logger.info(
-        f"Gas price set to {price} EUR/MWh (cost file: {base}) for {len(gas)} generators"
+        f"Fossil fuel costs multiplied by {factor} for {len(fuel)} generators: "
+        + ", ".join(f"{f} {costs.at[f, 'fuel'] * factor:.1f}" for f in sorted(set(fuel)))
+        + " EUR/MWh"
     )
 
 
@@ -530,9 +545,9 @@ if __name__ == "__main__":
 
     # After the grey ammonia plants and before the emission prices.
     for o in opts:
-        m = re.match(r"^Gas([0-9]*\.?[0-9]+)$", o)
+        m = re.match(r"^Fossil([0-9]*\.?[0-9]+)$", o)
         if m is not None:
-            set_gas_price(n, float(m.group(1)), costs)
+            scale_fossil_fuel_cost(n, float(m.group(1)), costs)
             break
 
     for o in opts:
