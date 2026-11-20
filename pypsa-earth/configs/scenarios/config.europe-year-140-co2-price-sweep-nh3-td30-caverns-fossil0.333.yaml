@@ -3,14 +3,9 @@
 # SPDX-License-Identifier: CC0-1.0
 
 # Fossil fuel cost sensitivity (20 Nov 2026): the fuel cost of gas, coal, lignite and oil, and so of
-# grey ammonia, multiplied by 0.32 (opts Fossil0.32, prepare_network.scale_fossil_fuel_cost). The factors
-# 0.32 and 3.2 span a factor of ten around the cost file's prices, the 2021-2025 averages without 2022
-# (references/fuel_cost_updates.csv). The zero-CO2 runs burn no fossil fuel, so they serve every factor.
-# Otherwise as config.europe-year-140-co2-price-sweep-nh3-td30-caverns-nh3dem.yaml.
-#
-# tartan-tortoise ammonia-demand runs (19 Nov 2026): a constant ammonia demand at each node's NH3 bus
-# (build_ammonia_demand.py; USGS production 2019-2021, 86 TWh a year).
-# NH3dem: met by synthesis or by existing grey plants, which pay the carbon price on their CO2.
+# grey ammonia, at one-third of the cost file's prices, the 2021-2025 averages without 2022
+# (references/fuel_cost_updates.csv): opts Fossil0.333, prepare_network.scale_fossil_fuel_cost. The zero-CO2
+# runs burn no fossil fuel, so they serve every factor. Otherwise as config.europe-year-140-co2-price-sweep-nh3-td30-caverns.yaml.
 #
 # Technology-data runs (6 Oct 2026): PyPSA-Earth default technology-data v0.13.2
 # costs, with DEA electrolysis, nuclear at 6504 EUR/kW, updated fuel prices and the
@@ -103,11 +98,11 @@ scenario:
   ll: ["copt"]
   clusters: [140]
   opts:
-  - Co2nocap-Ep0-3h-NH3-TD30-Caverns-NH3dem-Fossil0.32
-  - Co2nocap-Ep60-3h-NH3-TD30-Caverns-NH3dem-Fossil0.32
-  - Co2nocap-Ep150-3h-NH3-TD30-Caverns-NH3dem-Fossil0.32
-  - Co2nocap-Ep300-3h-NH3-TD30-Caverns-NH3dem-Fossil0.32
-  - Co2nocap-Ep500-3h-NH3-TD30-Caverns-NH3dem-Fossil0.32
+  - Co2nocap-Ep0-3h-NH3-TD30-Caverns-Fossil0.333
+  - Co2nocap-Ep60-3h-NH3-TD30-Caverns-Fossil0.333
+  - Co2nocap-Ep150-3h-NH3-TD30-Caverns-Fossil0.333
+  - Co2nocap-Ep300-3h-NH3-TD30-Caverns-Fossil0.333
+  - Co2nocap-Ep500-3h-NH3-TD30-Caverns-Fossil0.333
   planning_horizons:
   - 2030
   sopts:

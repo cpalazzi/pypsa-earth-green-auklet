@@ -253,7 +253,9 @@ FOSSIL_FUEL = {
 
 def scale_fossil_fuel_cost(n, factor, costs):
     """
-    Multiply the fuel cost of every fossil-fuelled generator by ``factor`` (opts Fossil<factor>).
+    Multiply the fuel cost of every fossil-fuelled generator by ``factor``.
+
+    For the opts Fossil<factor>, for example Fossil0.333 (one-third) or Fossil3.
 
     The generators that burn gas (OCGT, CCGT and the grey ammonia plants of NH3dem), coal,
     lignite or oil pay the cost file's fuel price over their efficiency; that part of their

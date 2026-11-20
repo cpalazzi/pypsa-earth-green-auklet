@@ -3,10 +3,9 @@
 # SPDX-License-Identifier: CC0-1.0
 
 # Fossil fuel cost sensitivity (20 Nov 2026): the fuel cost of gas, coal, lignite and oil, and so of
-# grey ammonia, multiplied by 0.32 (opts Fossil0.32, prepare_network.scale_fossil_fuel_cost). The factors
-# 0.32 and 3.2 span a factor of ten around the cost file's prices, the 2021-2025 averages without 2022
-# (references/fuel_cost_updates.csv). The zero-CO2 runs burn no fossil fuel, so they serve every factor.
-# Otherwise as config.europe-year-140-co2-price-sweep-td30.yaml.
+# grey ammonia, at three times the cost file's prices, the 2021-2025 averages without 2022
+# (references/fuel_cost_updates.csv): opts Fossil3, prepare_network.scale_fossil_fuel_cost. The zero-CO2
+# runs burn no fossil fuel, so they serve every factor. Otherwise as config.europe-year-140-co2-price-sweep-td30.yaml.
 #
 # Technology-data runs (6 Oct 2026): PyPSA-Earth default technology-data v0.13.2
 # costs, with DEA electrolysis, nuclear at 6504 EUR/kW, updated fuel prices and the
@@ -90,11 +89,11 @@ scenario:
   ll: ["copt"]
   clusters: [140]
   opts:
-  - Co2nocap-Ep0-3h-TD30-Fossil0.32
-  - Co2nocap-Ep60-3h-TD30-Fossil0.32
-  - Co2nocap-Ep150-3h-TD30-Fossil0.32
-  - Co2nocap-Ep300-3h-TD30-Fossil0.32
-  - Co2nocap-Ep500-3h-TD30-Fossil0.32
+  - Co2nocap-Ep0-3h-TD30-Fossil3
+  - Co2nocap-Ep60-3h-TD30-Fossil3
+  - Co2nocap-Ep150-3h-TD30-Fossil3
+  - Co2nocap-Ep300-3h-TD30-Fossil3
+  - Co2nocap-Ep500-3h-TD30-Fossil3
   planning_horizons:
   - 2030
   sopts:
