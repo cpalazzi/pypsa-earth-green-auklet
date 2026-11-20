@@ -1,0 +1,151 @@
+# SPDX-FileCopyrightText:  PyPSA-Earth and PyPSA-Eur Authors
+#
+# SPDX-License-Identifier: CC0-1.0
+
+# Fossil fuel cost sensitivity (20 Nov 2026): the fuel cost of gas, coal, lignite and oil, and so of
+# grey ammonia, multiplied by 0.32 (opts Fossil0.32, prepare_network.scale_fossil_fuel_cost). The factors
+# 0.32 and 3.2 span a factor of ten around the cost file's prices, the 2021-2025 averages without 2022
+# (references/fuel_cost_updates.csv). The zero-CO2 runs burn no fossil fuel, so they serve every factor.
+# Otherwise as config.europe-year-140-co2-price-sweep-td30.yaml.
+#
+# Technology-data runs (6 Oct 2026): PyPSA-Earth default technology-data v0.13.2
+# costs, with DEA electrolysis, nuclear at 6504 EUR/kW, updated fuel prices and the
+# ammonia components added by build_costs_td.py. Hydrogen tanks have an
+# explicit compressor. Discount rate is the PyPSA-Earth default.
+#
+# tartan-tortoise carbon-price sweep (13 Nov 2026): config.europe-year-140-co2-zero-td30.yaml
+# with no CO2 cap and the carbon price, in EUR/t, of the Ep option in each opts value. Job 02
+# solves the networks one after another.
+
+version: 0.8.0
+tutorial: false
+
+logging:
+  level: INFO
+  format: "%(levelname)s:%(name)s:%(message)s"
+
+results_dir: results/
+summary_dir: results/
+
+foresight: overnight
+
+countries:
+  - DE
+  - FR
+  - GB
+  - IT
+  - ES
+  - PL
+  - NL
+  - BE
+  - CZ
+  - RO
+  - SE
+  - PT
+  - GR
+  - HU
+  - AT
+  - BG
+  - DK
+  - FI
+  - SK
+  - IE
+  - HR
+  - LT
+  - SI
+  - LV
+  - EE
+  - CY
+  - LU
+  - MT
+  - "NO"
+  - CH
+  - RS
+  - BA
+  - AL
+  - MK
+  - ME
+
+enable:
+  retrieve_databundle: false
+  retrieve_databundle_sector: false
+  retrieve_cost_data: false
+  download_osm_data: true
+  download_global_buildings: false
+  build_natura_raster: false
+  build_cutout: false
+  progress_bar: true
+  custom_busmap: false
+
+custom_rules: []
+
+run:
+  name: "europe-year-140"
+  sector_name: ""
+  shared_cutouts: true
+  allow_scenario_failure: false
+
+scenario:
+  simpl: [""]
+  ll: ["copt"]
+  clusters: [140]
+  opts:
+  - Co2nocap-Ep0-3h-TD30-Fossil0.32
+  - Co2nocap-Ep60-3h-TD30-Fossil0.32
+  - Co2nocap-Ep150-3h-TD30-Fossil0.32
+  - Co2nocap-Ep300-3h-TD30-Fossil0.32
+  - Co2nocap-Ep500-3h-TD30-Fossil0.32
+  planning_horizons:
+  - 2030
+  sopts:
+  - "8760h"
+  demand:
+  - "AB"
+
+snapshots:
+  start: "2013-01-01"
+  end: "2014-01-01"
+  inclusive: "left"
+
+co2_budget:
+  enable: false
+  override_co2opt: true
+  co2base_value: co2limit
+
+costs:
+  file: "data/costs_td2030.csv"
+  emission_prices:
+    co2: 60.0  # EUR/tCO2 (2020 EUR) — used only if Ep wildcard has no number
+
+electricity:
+  co2limit: 1.0e12
+  extendable_carriers:
+    Generator: [solar, onwind, offwind-ac, offwind-dc, OCGT, CCGT, nuclear]
+
+atlite:
+  nprocesses: 4
+  cutouts:
+    cutout-2013-era5:
+      module: era5
+      dx: 0.3
+      dy: 0.3
+
+# Malta's 132 kV link from Maghtab Terminal Station, where the Sicily cable lands, to Kappara
+# (three circuits in a tunnel), which OSM lacks; without it the rest of Malta is an island
+# (DEVELOPMENT_NOTES.md, 19 Nov 2026).
+clean_osm_data_options:
+  use_custom_cables: "add_custom"
+  path_custom_cables: "data/custom_cables.geojson"
+
+# Connect isolated fragments of the OSM network (below 20 % of national load) to the nearest
+# backbone bus of the same country. Without this, 27 single-bus islands remained, and four of
+# them shed about 3 TWh a year at the 100 EUR/kWh lost-load price. Cyprus stays an island.
+cluster_options:
+  simplify_network:
+    s_threshold_fetch_isolated: 0.2
+
+# European reservoir energy by country (PyPSA-Eur data/hydro_capacities.csv); the global
+# table that PyPSA-Earth ships has no European rows, so reservoirs fell back to 6 h.
+renewable:
+  hydro:
+    hydro_capacities_extra: data/hydro_capacities_europe.csv
