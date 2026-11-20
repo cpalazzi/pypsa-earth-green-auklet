@@ -240,6 +240,22 @@ def add_ammonia_demand(n, demand_file, costs, grey, grey_efficiency):
     )
 
 
+def set_gas_price(n, price, costs):
+    """
+    Set the natural gas price, in EUR per MWh of gas, for the opts Gas<price> (for example Gas80).
+
+    The marginal cost of every generator that burns natural gas (OCGT, CCGT and the grey
+    ammonia plants of NH3dem) changes by the change in gas price over its efficiency, from the
+    cost file's price. It runs before ``Ep``, which adds the carbon price on top.
+    """
+    base = costs.at["gas", "fuel"]
+    gas = n.generators.index[n.generators.carrier.isin(["OCGT", "CCGT", "grey ammonia"])]
+    n.generators.loc[gas, "marginal_cost"] += (price - base) / n.generators.efficiency[gas]
+    logger.info(
+        f"Gas price set to {price} EUR/MWh (cost file: {base}) for {len(gas)} generators"
+    )
+
+
 def set_line_s_max_pu(n, s_max_pu):
     n.lines["s_max_pu"] = s_max_pu
     logger.info(f"N-1 security margin of lines set to {s_max_pu}")
@@ -511,6 +527,13 @@ if __name__ == "__main__":
             grey="NH3dem" in opts,
             grey_efficiency=snakemake.params.ammonia_demand["grey_efficiency"],
         )
+
+    # After the grey ammonia plants and before the emission prices.
+    for o in opts:
+        m = re.match(r"^Gas([0-9]*\.?[0-9]+)$", o)
+        if m is not None:
+            set_gas_price(n, float(m.group(1)), costs)
+            break
 
     for o in opts:
         if "Ep" in o:
