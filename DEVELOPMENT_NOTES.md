@@ -1055,6 +1055,8 @@ All five reruns (13447916-20) finished optimal on 9-10 Oct (47 min to 3 h 16 min
 
 **Done on 19 November.** The file and the two options in the 14 TD30 configs. A local check ran `clean_osm_data`'s cable steps on Malta's raw cables with the file (the cable keeps 132 kV and 3 circuits), then the bus merge on the cleaned Malta data: Malta's grid goes from two connected parts to one.
 
+**Checked on ARC, 23 November.** In the network rebuilt with the cable (`networks/europe-year-140/elec_s_140.nc` of tartan-tortoise's job 13820871), Malta has one node, `MT0 0`, in the main AC sub-network (78 buses), joined to Sicily's `IT0 2` by line 167 (the 220 kV cable, 492 MVA). The node that Malta frees went to Italy, which has 9 AC nodes instead of 8; every other country keeps its count, and the network still has 98 AC and 42 DC buses. Malta's node has 2.5 TWh a year of demand, 358 MW of CCGT, 190 MW of oil and 226 MW of solar, with room for 800 MW of solar and 11 MW of onshore wind.
+
 **Which runs (Carlo, 19 November).**
 - tartan-tortoise's carbon-price sweep is rerun on the fixed network, because its ammonia-demand runs (planned in its notes, "Ammonia-demand inputs") need new solves anyway, and the island sets the sweep's zero-CO2 shadow price.
 - green-caribou-paper keeps its runs, on which the fix changes the system LCOE by about 0.02-0.03 EUR/MWh (estimated 12 October), unless the sweep's zero-CO2 runs, which repeat three of its five scenarios, change a number the paper quotes. The tag `green-caribou-paper` (on `abf9b16`) marks the code they came from.
