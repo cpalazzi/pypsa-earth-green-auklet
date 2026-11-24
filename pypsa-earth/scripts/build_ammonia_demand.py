@@ -124,6 +124,11 @@ if __name__ == "__main__":
 
     plants = plant_production(plants, production)
     regions = gpd.read_file(snakemake.input.regions)
+    # The country of a clustered region is that of the first region merged into it
+    # (cluster_regions dissolves with country="first"), which at borders can be a neighbour's:
+    # in europe-year-140, SK0 0 was labelled CZ, so Slovakia's plant was left out, and 4 other
+    # regions of 113 were mislabelled. A clustered node's name starts with its country code.
+    regions["country"] = regions["name"].str[:2]
     plants["node"] = assign_nodes(plants, regions)
     plants = plants.dropna(subset=["node"])
 
