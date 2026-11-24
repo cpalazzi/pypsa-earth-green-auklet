@@ -2,10 +2,12 @@
 #
 # SPDX-License-Identifier: CC0-1.0
 
-# Fossil fuel cost sensitivity (20 Nov 2026): the fuel cost of gas, coal, lignite and oil, and so of
-# grey ammonia, at three times the cost file's prices, the 2021-2025 averages without 2022
-# (references/fuel_cost_updates.csv): opts Fossil3, prepare_network.scale_fossil_fuel_cost. The zero-CO2
-# runs burn no fossil fuel, so they serve every factor. Otherwise as config.europe-year-140-co2-price-sweep-h2-td30-caverns.yaml.
+# Fossil fuel cost sensitivity (24 Nov 2026): the fuel cost of gas, coal, lignite and oil, and so of
+# grey ammonia, at one-quarter of the cost file's prices, the 2021-2025 averages without 2022
+# (references/fuel_cost_updates.csv), so gas at 10 EUR/MWh instead of 40: opts Fossil0.25,
+# prepare_network.scale_fossil_fuel_cost. The sensitivity puts gas at 10, 40, 70 and 100 EUR/MWh.
+# The zero-CO2 runs burn no fossil fuel, so they serve every factor. Otherwise as
+# config.europe-year-140-co2-price-sweep-nh3-td30-caverns.yaml.
 #
 # Technology-data runs (6 Oct 2026): PyPSA-Earth default technology-data v0.13.2
 # costs, with DEA electrolysis, nuclear at 6504 EUR/kW, updated fuel prices and the
@@ -19,9 +21,11 @@
 # emptying of the cavern. Maximum withdrawal rates are in the order of 10 % of the storage capacity
 # per day").
 #
-# tartan-tortoise carbon-price sweep (13 Nov 2026): config.europe-year-140-co2-zero-h2-td30-caverns.yaml
+# tartan-tortoise carbon-price sweep (13 Nov 2026): config.europe-year-140-co2-zero-nh3-td30-caverns.yaml
 # with no CO2 cap and the carbon price, in EUR/t, of the Ep option in each opts value. Job 02
 # solves the networks one after another.
+# 60 EUR/t is included since the Malta link (19 Nov 2026): green-caribou's co2_price run, which has
+# the same opts, is archived before the reruns, because job 02 deletes the results matching its opts.
 
 version: 0.8.0
 tutorial: false
@@ -96,11 +100,11 @@ scenario:
   ll: ["copt"]
   clusters: [140]
   opts:
-  - Co2nocap-Ep0-3h-H2-TD30-Caverns-Fossil3
-  - Co2nocap-Ep60-3h-H2-TD30-Caverns-Fossil3
-  - Co2nocap-Ep150-3h-H2-TD30-Caverns-Fossil3
-  - Co2nocap-Ep300-3h-H2-TD30-Caverns-Fossil3
-  - Co2nocap-Ep500-3h-H2-TD30-Caverns-Fossil3
+  - Co2nocap-Ep0-3h-NH3-TD30-Caverns-Fossil0.25
+  - Co2nocap-Ep60-3h-NH3-TD30-Caverns-Fossil0.25
+  - Co2nocap-Ep150-3h-NH3-TD30-Caverns-Fossil0.25
+  - Co2nocap-Ep300-3h-NH3-TD30-Caverns-Fossil0.25
+  - Co2nocap-Ep500-3h-NH3-TD30-Caverns-Fossil0.25
   planning_horizons:
   - 2030
   sopts:
@@ -127,10 +131,11 @@ electricity:
   co2limit: 1.0e12
   max_hours:
     H2: 4380
+    NH3: 4380
   extendable_carriers:
     Generator: [solar, onwind, offwind-ac, offwind-dc, OCGT, CCGT, nuclear]
-    Store: [battery, H2]
-    Link: [CCGT H2, H2 pipeline]
+    Store: [battery, H2, NH3]
+    Link: [CCGT H2, H2 pipeline, CCGT NH3, NH3 pipeline]
   pipeline_submarine_cost_factor: 2.0
   h2_caverns:
     potentials: data/h2_cavern_potentials_s_140.csv
@@ -144,6 +149,14 @@ atlite:
       module: era5
       dx: 0.3
       dy: 0.3
+
+# NH3 pipelines pump liquid ammonia: about 0.1 % of the energy carried per 1000 km
+# (DEA energy transport, as in the analytical model).
+sector:
+  transmission_efficiency:
+    NH3 pipeline:
+      efficiency_per_1000km: 1
+      compression_per_1000km: 0.001
 
 # Malta's 132 kV link from Maghtab Terminal Station, where the Sicily cable lands, to Kappara
 # (three circuits in a tunnel), which OSM lacks; without it the rest of Malta is an island
