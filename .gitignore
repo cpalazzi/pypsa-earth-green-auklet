@@ -29,3 +29,6 @@ references/*.pdf
 
 # Private development notes, kept off GitHub
 references/DEVELOPMENT_NOTES_PRIVATE.md
+
+# Personal development notes, kept local
+DEVELOPMENT_NOTES.md
