@@ -154,11 +154,11 @@ def plot_soc(n, path):
                  color=TECH_COLORS["H2"], linewidth=1.4, label="H$_2$ caverns")
     if "NH3" in soc:
         top.plot(soc.index, soc["NH3"] / 1e6, color=TECH_COLORS["NH3"], linewidth=1.4, label="NH$_3$")
-    top.set_ylabel("Stores (TWh)")
+    top.set_ylabel("State of charge (TWh)")
     for carrier, label in (("battery", "Battery"), ("H2", "H$_2$ tanks")):
         if carrier in soc:
-            bottom.plot(soc.index, soc[carrier] / 1e3, color=TECH_COLORS[carrier], linewidth=0.8, label=label)
-    bottom.set_ylabel("Stores (GWh)")
+            bottom.plot(soc.index, soc[carrier] / 1e6, color=TECH_COLORS[carrier], linewidth=0.8, label=label)
+    bottom.set_ylabel("State of charge (TWh)")
     for ax, loc in ((top, "center right"), (bottom, "upper right")):
         ax.grid(alpha=0.3)
         ax.legend(loc=loc, frameon=False)
